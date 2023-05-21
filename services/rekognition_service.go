@@ -19,6 +19,8 @@ func RekognitionSession() *rekognition.Rekognition {
 
 	svc := rekognition.New(sess)
 
+	fmt.Println("Rekognition session created")
+
 	return svc
 }
 
@@ -33,6 +35,8 @@ func DetectLabels(svc *rekognition.Rekognition, decodedImage []byte) *rekognitio
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	fmt.Println("Labels detected")
 
 	return result
 }

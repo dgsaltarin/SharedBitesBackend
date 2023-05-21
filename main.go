@@ -1,9 +1,11 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+
+	"github.com/dgsaltarin/SharedBitesBackend/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,11 +31,30 @@ func main() {
 			return
 		}
 
-		decodedImage, err := base64.StdEncoding.DecodeString(file.Filename)
+		src, err := file.Open()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
 
-		session := RekognitionSession()
+		defer src.Close()
 
-		result := DetectLabels(session, decodedImage)
+		data := make([]byte, file.Size)
+		_, err = src.Read(data)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		fmt.Println(file.Filename)
+
+		session := services.RekognitionSession()
+
+		result := services.DetectLabels(session, data)
 
 		output, err := json.Marshal(result)
 		if err != nil {
