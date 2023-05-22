@@ -24,14 +24,14 @@ func RekognitionSession() *rekognition.Rekognition {
 	return svc
 }
 
-func DetectLabels(svc *rekognition.Rekognition, decodedImage []byte) *rekognition.DetectLabelsOutput {
-	input := &rekognition.DetectLabelsInput{
+func DetectLabels(svc *rekognition.Rekognition, decodedImage []byte) *rekognition.DetectTextOutput {
+	input := &rekognition.DetectTextInput{
 		Image: &rekognition.Image{
 			Bytes: decodedImage,
 		},
 	}
 
-	result, err := svc.DetectLabels(input)
+	result, err := svc.DetectText(input)
 	if err != nil {
 		fmt.Println(err)
 	}
