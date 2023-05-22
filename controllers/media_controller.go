@@ -9,6 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// default function
+func HelloWorld() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Hello World",
+		})
+	}
+}
+
+// decode image from request and send it to AWS Rekognition
 func UploadImage() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		image, err := c.FormFile("file")
