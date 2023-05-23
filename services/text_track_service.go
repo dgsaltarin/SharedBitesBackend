@@ -8,7 +8,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/rekognition"
 	"github.com/aws/aws-sdk-go/service/textract"
 )
 
@@ -22,56 +21,15 @@ type Expense struct {
 	Price float64
 }
 
-func RekognitionSession() *rekognition.Rekognition {
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String("us-east-1"),
-	})
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	svc := rekognition.New(sess)
-
-	fmt.Println("Rekognition session created")
-
-	return svc
-}
-
-func TextTrackSesson() *textract.Textract {
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String("us-east-1"),
-	})
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	svc := textract.New(sess)
+func TextTrackSesson(session *session.Session) *textract.Textract {
+	svc := textract.New(session)
 
 	fmt.Println("Textract session created")
 
 	return svc
 }
 
-func DetectLabels(svc *rekognition.Rekognition, decodedImage []byte) *rekognition.DetectTextOutput {
-	input := &rekognition.DetectTextInput{
-		Image: &rekognition.Image{
-			Bytes: decodedImage,
-		},
-	}
-
-	result, err := svc.DetectText(input)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	fmt.Println("Labels detected")
-
-	return result
-}
-
-func DetectText(svc *textract.Textract, objectname string) *textract.GetExpenseAnalysisOutput {
+func Detectitems(svc *textract.Textract, objectname string) *textract.GetExpenseAnalysisOutput {
 	input := &textract.StartExpenseAnalysisInput{
 		NotificationChannel: &textract.NotificationChannel{
 			SNSTopicArn: aws.String(AWS_TOPIC_ARN),
@@ -94,7 +52,7 @@ func DetectText(svc *textract.Textract, objectname string) *textract.GetExpenseA
 		fmt.Println(err)
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(12 * time.Second)
 
 	output, err := svc.GetExpenseAnalysis(&textract.GetExpenseAnalysisInput{
 		JobId: result.JobId,
