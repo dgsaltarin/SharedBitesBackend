@@ -19,7 +19,7 @@ func HelloWorld() gin.HandlerFunc {
 	}
 }
 
-// decode image from request and send it to AWS Rekognition
+// UploadImage function upload image to s3 and start analyze to detect items
 func UploadImage() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		image, err := c.FormFile("file")
@@ -32,41 +32,11 @@ func UploadImage() gin.HandlerFunc {
 
 		data, err := helpers.DecodeImage(image)
 
-		session := services.RekognitionSession()
+		aws_session := services.AWSSession()
 
-		result := services.DetectLabels(session, data)
-
-		output, err := json.Marshal(result)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"result": string(output),
-		})
-	}
-}
-
-func UploadTextTract() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		image, err := c.FormFile("file")
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-
-		data, err := helpers.DecodeImage(image)
-
-		services.UploadImages3(services.AWSSession(), data, image.Filename)
-
-		session := services.TextTrackSesson()
-
-		result := services.DetectText(session, image.Filename)
+		services.UploadImages3(aws_session, data, image.Filename)
+		session := services.TextTrackSesson(aws_session)
+		result := services.Detectitems(session, image.Filename)
 
 		output, err := json.Marshal(result)
 		if err != nil {

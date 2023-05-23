@@ -14,8 +14,7 @@ func main() {
 	router := gin.Default()
 
 	router.GET("/hello", controllers.HelloWorld())
-	router.POST("/rekognition", controllers.UploadImage())
-	router.POST("/texttrack", controllers.UploadTextTract())
+	router.POST("/texttrack", controllers.UploadImage())
 
 	router.Run()
 }
