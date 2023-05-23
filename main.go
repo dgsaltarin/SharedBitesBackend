@@ -15,6 +15,7 @@ func main() {
 
 	router.GET("/hello", controllers.HelloWorld())
 	router.POST("/rekognition", controllers.UploadImage())
+	router.POST("/texttrack", controllers.UploadTextTract())
 
 	router.Run()
 }
