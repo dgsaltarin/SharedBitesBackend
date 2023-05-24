@@ -29,7 +29,8 @@ func TextTrackSesson(session *session.Session) *textract.Textract {
 	return svc
 }
 
-func Detectitems(svc *textract.Textract, objectname string) *textract.GetExpenseAnalysisOutput {
+// Detectitems detects start the expenses analysis job and get teh result once the job is complete
+func Detectitems(svc *textract.Textract, objectname string) []Expense {
 	input := &textract.StartExpenseAnalysisInput{
 		NotificationChannel: &textract.NotificationChannel{
 			SNSTopicArn: aws.String(AWS_TOPIC_ARN),
@@ -52,8 +53,6 @@ func Detectitems(svc *textract.Textract, objectname string) *textract.GetExpense
 		fmt.Println(err)
 	}
 
-	time.Sleep(12 * time.Second)
-
 	output, err := svc.GetExpenseAnalysis(&textract.GetExpenseAnalysisInput{
 		JobId: result.JobId,
 	})
@@ -62,50 +61,49 @@ func Detectitems(svc *textract.Textract, objectname string) *textract.GetExpense
 		fmt.Println(err)
 	}
 
-	//expensesR := extractExpensesFromResults(output.Blocks)
+	// repeat the request until the analysis job is complete
+	for *output.JobStatus == "IN_PROGRESS" {
+		time.Sleep(2 * time.Second)
+		output, err = svc.GetExpenseAnalysis(&textract.GetExpenseAnalysisInput{
+			JobId: result.JobId,
+		})
 
-	return output
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+
+	expensesR := extractExpensesFromResults(output.ExpenseDocuments[0].LineItemGroups)
+
+	return expensesR
 }
 
-func extractExpensesFromResults(blocks []*textract.Block) []Expense {
+// extractExpensesFromResults extracts the expenses item and price from the results of the expense analysis
+func extractExpensesFromResults(itemsGroup []*textract.LineItemGroup) []Expense {
 	var expenses []Expense
 
 	// Example: Extract expenses from table cells
-	for _, block := range blocks {
-		if *block.BlockType == "CELL" && *block.RowSpan == 1 && *block.ColumnSpan == 1 {
-			// Extract item and price from table cells
-			if len(block.Relationships) > 0 && *block.Relationships[0].Type == "CHILD" {
-				item := ""
-				price := 0.0
+	for _, itemRow := range itemsGroup[0].LineItems {
+		var item string
+		var price string
 
-				for _, id := range block.Relationships[0].Ids {
-					childBlock := findBlockByID(id, blocks)
-					if childBlock != nil && *childBlock.BlockType == "WORD" {
-						if item == "" {
-							item = *childBlock.Text
-						} else {
-							price, _ = parsePrice(*childBlock.Text)
-						}
-					}
-				}
-
-				if item != "" && price > 0.0 {
-					expenses = append(expenses, Expense{Item: item, Price: price})
-				}
-			}
+		if *itemRow.LineItemExpenseFields[0].Type.Text == "ITEM" {
+			item = *itemRow.LineItemExpenseFields[0].ValueDetection.Text
 		}
+
+		if *itemRow.LineItemExpenseFields[1].Type.Text == "PRICE" {
+			price = *itemRow.LineItemExpenseFields[1].ValueDetection.Text
+		}
+
+		parsedPrice, err := parsePrice(price)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		expenses = append(expenses, Expense{Item: item, Price: parsedPrice})
 	}
 
 	return expenses
-}
-
-func findBlockByID(id *string, blocks []*textract.Block) *textract.Block {
-	for _, block := range blocks {
-		if block.Id == id {
-			return block
-		}
-	}
-	return nil
 }
 
 // parse price from string
@@ -113,6 +111,8 @@ func parsePrice(text string) (float64, error) {
 	// Remove non-numeric characters from the text
 	text = strings.ReplaceAll(text, "$", "")
 	text = strings.ReplaceAll(text, ",", "")
+	text = strings.ReplaceAll(text, " ", "")
+	text = strings.ReplaceAll(text, ".", "")
 
 	// Parse the text as a float64
 	price, err := strconv.ParseFloat(text, 64)
