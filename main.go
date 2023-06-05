@@ -15,6 +15,7 @@ func main() {
 
 	router.GET("/hello", controllers.HelloWorld())
 	router.POST("/texttrack", controllers.UploadImage())
+	router.POST("/users", controllers.CreateUser())
 
 	router.Run()
 }
