@@ -3,10 +3,13 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/dgsaltarin/SharedBitesBackend/db"
 	"github.com/dgsaltarin/SharedBitesBackend/models"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
 func Login() gin.HandlerFunc {
@@ -32,25 +35,42 @@ func Login() gin.HandlerFunc {
 		// new user database
 		userdb := db.NewUserDB(dyanmodb)
 
-		user, err := userdb.GetUser(userRequest.ID)
+		user, err := userdb.GetUserByUsername(userRequest.Username)
 		if err != nil {
 			c.JSON(500, gin.H{
-				"message": "Error getting user",
+				"message": "Invalid username or password",
 			})
 			fmt.Println(err)
 			return
 		}
 
 		// check if password is correct
-		if user.Username != userRequest.Username || user.Password != userRequest.Password {
-			c.JSON(500, gin.H{
-				"message": "Incorrect username or password",
+		if user.CheckPassword(userRequest.Password) {
+			token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+				"sub": user.Username,
+				"exp": time.Now().Add(time.Minute * 10).Unix(),
 			})
-			return
+
+			// Sign and get the complete encoded token as a string using the secret
+			tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
+
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": err.Error(),
+				})
+				return
+			}
+			c.SetSameSite(http.SameSiteLaxMode)
+			c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
+			c.JSON(http.StatusOK, gin.H{
+				"user": userdb,
+			})
+
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Invalid email or password",
+			})
 		}
 
-		c.JSON(200, gin.H{
-			"message": "User logged in successfully",
-		})
 	}
 }
