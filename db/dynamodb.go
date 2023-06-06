@@ -12,6 +12,7 @@ import (
 type DynamodbInterface interface {
 	PutItem(*dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error)
 	GetItem(*dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
+	Query(*dynamodb.QueryInput) (*dynamodb.QueryOutput, error)
 }
 
 // Dynamodb structure for dynamodb utils
@@ -64,4 +65,9 @@ func (m Dynamodb) GetItem(table string, model interface{}) (*dynamodb.GetItemOut
 	}
 
 	return m.Db.GetItem(params)
+}
+
+// Query is the method in charge of search objects by its partition key
+func (m Dynamodb) Query(params *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
+	return m.Db.Query(params)
 }
