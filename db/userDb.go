@@ -69,6 +69,11 @@ func (u *UsersDb) GetUserByUsername(username string) (*models.User, error) {
 		return nil, err
 	}
 
+	// check if user is empty
+	if len(users) == 0 {
+		return nil, err
+	}
+
 	user = &users[0]
 
 	return user, err

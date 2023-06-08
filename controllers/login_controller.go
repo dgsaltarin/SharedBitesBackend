@@ -52,7 +52,7 @@ func Login() gin.HandlerFunc {
 			})
 
 			// Sign and get the complete encoded token as a string using the secret
-			tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
+			tokenString, err := token.SignedString([]byte(os.Getenv("SECRET_KEY")))
 
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{
