@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -18,7 +17,6 @@ func Login() gin.HandlerFunc {
 		var userRequest *models.User
 		if err := c.ShouldBindJSON(&userRequest); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			fmt.Println(err)
 			return
 		}
 
@@ -28,7 +26,6 @@ func Login() gin.HandlerFunc {
 			c.JSON(500, gin.H{
 				"message": "Error connecting to database",
 			})
-			fmt.Println(err)
 			return
 		}
 
@@ -40,7 +37,6 @@ func Login() gin.HandlerFunc {
 			c.JSON(500, gin.H{
 				"message": "Invalid username or password",
 			})
-			fmt.Println(err)
 			return
 		}
 
