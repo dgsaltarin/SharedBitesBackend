@@ -20,6 +20,7 @@ func main() {
 	router.GET("/users", controllers.GetUserByUsername())
 	router.POST("/login", controllers.Login())
 	router.POST("/signup", controllers.SignUp())
+	router.GET("/healthcheck", controllers.HealthCheck())
 
 	router.Run()
 }
