@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -11,6 +12,7 @@ import (
 )
 
 var dynamodbInstance *Dynamodb
+var lock sync.Mutex
 
 // DynamodbInterface interface for the data type of Db field
 type DynamodbInterface interface {
@@ -37,6 +39,10 @@ func Connect() *Dynamodb {
 }
 
 func GetDynamoDBInstance() *Dynamodb {
+	// lock instance for different go routines
+	lock.Lock()
+	defer lock.Unlock()
+
 	if dynamodbInstance == nil {
 		dynamodbInstance = &Dynamodb{}
 		dynamodbInstance = Connect()
