@@ -3,6 +3,7 @@ package middlewares
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/dgsaltarin/SharedBitesBackend/db"
@@ -22,15 +23,18 @@ func Authorize(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate token
+	// Parse token and validate token that is encrypted using HS256
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
-		return token, nil
+		// Return the secret key used for signing
+		return []byte(os.Getenv("SECRET_KEY")), nil
 	})
 
+	// Validate that token is not expired and is valid
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// Validate token is not expired
 		if float64(time.Now().Unix()) > claims["exp"].(float64) {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
@@ -61,6 +65,7 @@ func Authorize(c *gin.Context) {
 		c.Next()
 	} else {
 		c.AbortWithStatus(http.StatusUnauthorized)
+		fmt.Println("claims error")
 		return
 	}
 }
