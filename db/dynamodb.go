@@ -1,12 +1,16 @@
 package db
 
 import (
+	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/dgsaltarin/SharedBitesBackend/services"
 )
+
+var dynamodbInstance *Dynamodb
 
 // DynamodbInterface interface for the data type of Db field
 type DynamodbInterface interface {
@@ -21,7 +25,7 @@ type Dynamodb struct {
 }
 
 // Connect is the method in charge of connect to dynamodb
-func Connect() (*Dynamodb, error) {
+func Connect() *Dynamodb {
 	sess := services.AWSSession()
 
 	svc := dynamodb.New(sess)
@@ -29,7 +33,17 @@ func Connect() (*Dynamodb, error) {
 
 	return &Dynamodb{
 		Db: Db,
-	}, nil
+	}
+}
+
+func GetDynamoDBInstance() *Dynamodb {
+	if dynamodbInstance == nil {
+		dynamodbInstance = &Dynamodb{}
+		dynamodbInstance = Connect()
+	} else {
+		fmt.Println("Dynamodb already connected")
+	}
+	return dynamodbInstance
 }
 
 // Upsert is the method in charge of create or update objects

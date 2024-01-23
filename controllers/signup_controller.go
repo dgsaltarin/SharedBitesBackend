@@ -21,14 +21,7 @@ func SignUp() gin.HandlerFunc {
 		}
 
 		// new dyanmodb database
-		dyanmodb, err := db.Connect()
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "Error connecting to database",
-			})
-			fmt.Println(err)
-			return
-		}
+		dyanmodb := db.GetDynamoDBInstance()
 
 		// new user database
 		userdb := db.NewUserDB(dyanmodb)
