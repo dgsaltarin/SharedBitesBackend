@@ -1,8 +1,11 @@
 package main
 
 import (
+	"log"
+
 	"github.com/dgsaltarin/SharedBitesBackend/controllers"
 	"github.com/dgsaltarin/SharedBitesBackend/middlewares"
+	"github.com/joho/godotenv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,6 +15,11 @@ type RequestBody struct {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	router := gin.Default()
 
 	router.GET("/hello", middlewares.Authorize, controllers.HelloWorld())
