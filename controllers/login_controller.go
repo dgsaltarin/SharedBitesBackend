@@ -21,13 +21,7 @@ func Login() gin.HandlerFunc {
 		}
 
 		// new dynamodb database
-		dyanmodb, err := db.Connect()
-		if err != nil {
-			c.JSON(500, gin.H{
-				"message": "Error connecting to database",
-			})
-			return
-		}
+		dyanmodb := db.GetDynamoDBInstance()
 
 		// new user database
 		userdb := db.NewUserDB(dyanmodb)
@@ -59,7 +53,7 @@ func Login() gin.HandlerFunc {
 			c.SetSameSite(http.SameSiteLaxMode)
 			c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
 			c.JSON(http.StatusOK, gin.H{
-				"user": userdb,
+				"user": user,
 			})
 
 		} else {

@@ -20,14 +20,7 @@ func CreateUser() gin.HandlerFunc {
 		}
 
 		// new dyanmodb database
-		dyanmodb, err := db.Connect()
-		if err != nil {
-			c.JSON(500, gin.H{
-				"message": "Error connecting to database",
-			})
-			fmt.Println(err)
-			return
-		}
+		dyanmodb := db.GetDynamoDBInstance()
 
 		// add uuid to user
 		user.ID = uuid.New().String()
@@ -36,7 +29,7 @@ func CreateUser() gin.HandlerFunc {
 		userdb := db.NewUserDB(dyanmodb)
 
 		// create user in dynamodb
-		err = userdb.UpserUser(&user)
+		err := userdb.UpserUser(&user)
 		if err != nil {
 			c.JSON(500, gin.H{
 				"message": "Error creating user",
@@ -57,14 +50,7 @@ func GetUser() gin.HandlerFunc {
 		userID := c.Query("id")
 
 		// new dyanmodb database
-		dyanmodb, err := db.Connect()
-		if err != nil {
-			c.JSON(500, gin.H{
-				"message": "Error connecting to database",
-			})
-			fmt.Println(err)
-			return
-		}
+		dyanmodb := db.GetDynamoDBInstance()
 
 		// new user database
 		userdb := db.NewUserDB(dyanmodb)
@@ -96,14 +82,7 @@ func GetUserByUsername() gin.HandlerFunc {
 		}
 
 		// new dyanmodb database
-		dyanmodb, err := db.Connect()
-		if err != nil {
-			c.JSON(500, gin.H{
-				"message": "Error connecting to database",
-			})
-			fmt.Println(err)
-			return
-		}
+		dyanmodb := db.GetDynamoDBInstance()
 
 		// new user database
 		userdb := db.NewUserDB(dyanmodb)
