@@ -1,4 +1,4 @@
-package models
+package entity
 
 import (
 	"fmt"
@@ -7,10 +7,10 @@ import (
 )
 
 type User struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	ID       string
+	Username string
+	Email    string
+	Password string
 }
 
 // GeneratePasswordHash generates a hash for the password
