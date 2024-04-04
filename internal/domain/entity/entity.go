@@ -2,6 +2,7 @@ package entity
 
 import (
 	"fmt"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -29,4 +30,19 @@ func (u *User) GeneratePasswordHash() error {
 func (u *User) CheckPassword(password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	return err == nil
+}
+
+type Item struct {
+	Name  string
+	Price float64
+}
+
+type Bill struct {
+	ID          string
+	Items       []Item
+	Total       float64
+	People      int
+	SplitEqualy bool
+	UserID      string
+	Date        time.Time
 }
