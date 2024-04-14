@@ -1,13 +1,9 @@
 package main
 
 import (
-	"log"
-
-	"github.com/dgsaltarin/SharedBitesBackend/controllers"
-	"github.com/dgsaltarin/SharedBitesBackend/middlewares"
-	"github.com/joho/godotenv"
-
-	"github.com/gin-gonic/gin"
+	services "github.com/dgsaltarin/SharedBitesBackend/internal/application/services"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/infrastructure/handlers"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/infrastructure/router"
 )
 
 type RequestBody struct {
@@ -15,20 +11,11 @@ type RequestBody struct {
 }
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	// Dependency Injection
+	healtcheckService := services.NewHealthCheckService()
+	healthcheckHandler := handlers.NewHealthCheckHandler(&healtcheckService)
 
-	router := gin.Default()
+	router := router.NewRouter(&healthcheckHandler)
 
-	router.GET("/hello", middlewares.Authorize, controllers.HelloWorld())
-	router.POST("/texttrack", controllers.UploadImage())
-	router.POST("/users", controllers.CreateUser())
-	router.GET("/users", controllers.GetUserByUsername())
-	router.POST("/login", controllers.Login())
-	router.POST("/signup", controllers.SignUp())
-	router.GET("/healthcheck", controllers.HealthCheck())
-
-	router.Run()
+	router.SetupRouter()
 }
