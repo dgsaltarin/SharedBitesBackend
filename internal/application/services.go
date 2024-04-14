@@ -16,3 +16,7 @@ type BillService interface {
 type S3Service interface {
 	UploadImage(image []byte) (string, error)
 }
+
+type HealthCheckService interface {
+	Check() string
+}
