@@ -9,15 +9,14 @@ type HealthCheckHandler struct {
 	HealthCheckService services.HealthCheckService
 }
 
-func NewHealthCheckHandler() HealthCheckHandler {
+func NewHealthCheckHandler(healthCheckService *services.HealthCheckService) HealthCheckHandler {
 	return HealthCheckHandler{
-		HealthCheckService: services.HealthCheckService{},
+		HealthCheckService: *healthCheckService,
 	}
 }
 
-func (h *HealthCheckHandler) HealthCheck() (c *gin.Context) {
+func (h *HealthCheckHandler) HealthCheck(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"message": h.HealthCheckService.Check(),
 	})
-	return
 }
