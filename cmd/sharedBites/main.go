@@ -14,8 +14,10 @@ func main() {
 	// Dependency Injection
 	healtcheckService := services.NewHealthCheckService()
 	healthcheckHandler := handlers.NewHealthCheckHandler(&healtcheckService)
+	billService := services.NewBillService()
+	handlers := handlers.NewHanlder(&billService)
 
-	router := router.NewRouter(&healthcheckHandler)
+	router := router.NewRouter(&healthcheckHandler, &handlers)
 
 	router.SetupRouter()
 }

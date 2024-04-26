@@ -1,7 +1,8 @@
-package services
+package helpers
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/textract"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/domain/entity"
 )
 
 const (
@@ -16,21 +18,13 @@ const (
 	AWS_ROLE_ARN  string = "arn:aws:iam::955650001607:role/texttrack-sns"
 )
 
-type Expense struct {
-	Item  string
-	Price float64
-}
-
 func TextTrackSesson(session *session.Session) *textract.Textract {
 	svc := textract.New(session)
-
-	fmt.Println("Textract session created")
-
 	return svc
 }
 
 // Detectitems detects start the expenses analysis job and get teh result once the job is complete
-func Detectitems(svc *textract.Textract, objectname string) []Expense {
+func Detectitems(svc *textract.Textract, objectname string) []entity.Item {
 	input := &textract.StartExpenseAnalysisInput{
 		NotificationChannel: &textract.NotificationChannel{
 			SNSTopicArn: aws.String(AWS_TOPIC_ARN),
@@ -38,12 +32,12 @@ func Detectitems(svc *textract.Textract, objectname string) []Expense {
 		},
 		DocumentLocation: &textract.DocumentLocation{
 			S3Object: &textract.S3Object{
-				Bucket: aws.String(AWS_S3_BUCKET),
+				Bucket: aws.String(os.Getenv("AWS_S3_BUCKET")),
 				Name:   aws.String(objectname),
 			},
 		},
 		OutputConfig: &textract.OutputConfig{
-			S3Bucket: aws.String(AWS_S3_BUCKET),
+			S3Bucket: aws.String(os.Getenv("AWS_S3_BUCKET")),
 			S3Prefix: aws.String("output"),
 		},
 	}
@@ -73,22 +67,26 @@ func Detectitems(svc *textract.Textract, objectname string) []Expense {
 		}
 	}
 
+	fmt.Printf("result %s", output.ExpenseDocuments[0].LineItemGroups)
+
 	expensesR := extractExpensesFromResults(output.ExpenseDocuments[0].LineItemGroups)
+
+	fmt.Printf("expenses %s", expensesR)
 
 	return expensesR
 }
 
 // extractExpensesFromResults extracts the expenses item and price from the results of the expense analysis
-func extractExpensesFromResults(itemsGroup []*textract.LineItemGroup) []Expense {
-	var expenses []Expense
+func extractExpensesFromResults(itemsGroup []*textract.LineItemGroup) []entity.Item {
+	var expenses []entity.Item
 
 	// Example: Extract expenses from table cells
 	for _, itemRow := range itemsGroup[0].LineItems {
-		var item string
+		var name string
 		var price string
 
 		if *itemRow.LineItemExpenseFields[0].Type.Text == "ITEM" {
-			item = *itemRow.LineItemExpenseFields[0].ValueDetection.Text
+			name = *itemRow.LineItemExpenseFields[0].ValueDetection.Text
 		}
 
 		if *itemRow.LineItemExpenseFields[1].Type.Text == "PRICE" {
@@ -100,7 +98,7 @@ func extractExpensesFromResults(itemsGroup []*textract.LineItemGroup) []Expense 
 			fmt.Println(err)
 		}
 
-		expenses = append(expenses, Expense{Item: item, Price: parsedPrice})
+		expenses = append(expenses, entity.Item{Name: name, Price: parsedPrice})
 	}
 
 	return expenses

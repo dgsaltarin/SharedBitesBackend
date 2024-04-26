@@ -1,16 +1,16 @@
-package services
+package helpers
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 )
 
-// AWSSession creates a new session for aws
 func AWSSession() *session.Session {
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(AWS_S3_REGION),
+		Region: aws.String(os.Getenv("AWS_REGION")),
 	})
 
 	if err != nil {
