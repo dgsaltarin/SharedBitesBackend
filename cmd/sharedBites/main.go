@@ -2,8 +2,10 @@ package main
 
 import (
 	services "github.com/dgsaltarin/SharedBitesBackend/internal/application/services"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/dependencies"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/infrastructure/handlers"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/infrastructure/router"
+	mainRouter "github.com/dgsaltarin/SharedBitesBackend/internal/infrastructure/router"
+	"go.uber.org/dig"
 )
 
 type RequestBody struct {
@@ -17,7 +19,18 @@ func main() {
 	billService := services.NewBillService()
 	handlers := handlers.NewHanlder(&billService)
 
-	router := router.NewRouter(&healthcheckHandler, &handlers)
+	router := mainRouter.NewRouter(&healthcheckHandler, &handlers)
+	container := dependencies.NewWire()
+	if err := invokeDependencyInjection(container, router); err != nil {
+		panic(err)
+	}
 
 	router.SetupRouter()
+}
+
+func invokeDependencyInjection(container *dig.Container, api *mainRouter.Router) error {
+	return container.Invoke(func(h *dependencies.HandlersContainer) {
+		api.HealthCheckHandler = h.HealthCheckHandler
+		api.Handler = h.Handler
+	})
 }
