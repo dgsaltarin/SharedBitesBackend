@@ -30,7 +30,6 @@ func main() {
 
 func invokeDependencyInjection(container *dig.Container, api *mainRouter.Router) error {
 	return container.Invoke(func(h *dependencies.HandlersContainer) {
-		api.HealthCheckHandler = h.HealthCheckHandler
-		api.Handler = h.Handler
+		
 	})
 }
