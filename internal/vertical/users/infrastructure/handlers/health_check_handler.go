@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"github.com/dgsaltarin/SharedBitesBackend/internal/application/services"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/application/services"
 	"github.com/gin-gonic/gin"
 )
 

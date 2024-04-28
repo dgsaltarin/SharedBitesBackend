@@ -1,7 +1,7 @@
 package services
 
 import (
-	services "github.com/dgsaltarin/SharedBitesBackend/internal/application"
+	services "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/application"
 )
 
 type userService struct {
