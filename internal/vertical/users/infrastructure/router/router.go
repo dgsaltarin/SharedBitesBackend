@@ -1,7 +1,7 @@
 package router
 
 import (
-	handlders "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/handlers"
+	handlders "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/rest/gin/handlers"
 	"github.com/gin-gonic/gin"
 )
 
