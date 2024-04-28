@@ -7,7 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/infrastructure/repository/dynamodb/models"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/repository/dynamodb/models"
 )
 
 var USER_TABLE string = os.Getenv("USER_TABLE")

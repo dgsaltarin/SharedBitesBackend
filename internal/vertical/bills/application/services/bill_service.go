@@ -4,14 +4,27 @@ import (
 	"encoding/json"
 	"mime/multipart"
 
-	"github.com/dgsaltarin/SharedBitesBackend/internal/infrastructure/helpers"
+	awssession "github.com/dgsaltarin/SharedBitesBackend/internal/common/aws/session"
+	decoder "github.com/dgsaltarin/SharedBitesBackend/internal/common/decoder"
+	s3 "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/bills/application/providers/s3"
+	textTrack "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/bills/application/providers/text_track"
 )
 
-type BillService struct{}
+type BillService struct {
+	decoder    *decoder.Decoder
+	awsSession *awssession.AWSSession
+	s3         *s3.S3
+	textTrack  *textTrack.TextTrackService
+}
 
 // NewBillService creates a new instance of BillService
-func NewBillService() BillService {
-	return BillService{}
+func NewBillService(decoder *decoder.Decoder, awssession *awssession.AWSSession, s3 *s3.S3, textTrack *textTrack.TextTrackService) BillService {
+	return BillService{
+		decoder:    decoder,
+		awsSession: awssession,
+		s3:         s3,
+		textTrack:  textTrack,
+	}
 }
 
 // CreateBill creates a new bill
@@ -21,17 +34,17 @@ func (b *BillService) GetBillByID() error {
 
 // SplitBill splits a bill
 func (b *BillService) SplitBill(image *multipart.FileHeader) ([]byte, error) {
-	imageData, err := helpers.DecodeImage(image)
+	imageData, err := b.decoder.DecodeImage(image)
 
 	if err != nil {
 		return nil, err
 	}
 
-	awsSession := helpers.AWSSession()
+	awsSession := b.awsSession.CreateSession()
 
-	helpers.UploadImages3(awsSession, imageData, image.Filename)
-	session := helpers.TextTrackSesson(awsSession)
-	result := helpers.Detectitems(session, image.Filename)
+	b.s3.UploadImages3(awsSession, imageData, image.Filename)
+	session := b.textTrack.TextTrackSesson(awsSession)
+	result := b.textTrack.Detectitems(session, image.Filename)
 
 	output, err := json.Marshal(result)
 	if err != nil {

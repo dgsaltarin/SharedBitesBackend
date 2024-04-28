@@ -4,8 +4,14 @@ import (
 	"mime/multipart"
 )
 
+type Decoder struct{}
+
+func NewDecoder() Decoder {
+	return Decoder{}
+}
+
 // DecodeImage trsanslate image from multipart.FileHeader to []byte
-func DecodeImage(image *multipart.FileHeader) ([]byte, error) {
+func (d *Decoder) DecodeImage(image *multipart.FileHeader) ([]byte, error) {
 	src, err := image.Open()
 	if err != nil {
 		return nil, err

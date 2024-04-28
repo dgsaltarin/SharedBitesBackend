@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/dgsaltarin/SharedBitesBackend/internal/domain/entity"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/domain/entity"
 )
 
 type UserRepository interface {
