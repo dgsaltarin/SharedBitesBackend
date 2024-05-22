@@ -9,9 +9,9 @@ type HealthCheckHandler struct {
 	HealthCheckService services.HealthCheckService
 }
 
-func NewHealthCheckHandler(healthCheckService *services.HealthCheckService) HealthCheckHandler {
-	return HealthCheckHandler{
-		HealthCheckService: *healthCheckService,
+func NewHealthCheckHandler(healthCheckService services.HealthCheckService) *HealthCheckHandler {
+	return &HealthCheckHandler{
+		HealthCheckService: healthCheckService,
 	}
 }
 
