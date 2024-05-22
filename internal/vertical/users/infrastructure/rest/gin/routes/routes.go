@@ -11,7 +11,7 @@ type UsersRouter struct {
 }
 
 // NewRouter creates a new router for the users vertical
-func NewRouter(healthcheckHandler *handlders.HealthCheckHandler, group *gin.RouterGroup) *UsersRouter {
+func NewUserRoutes(group *gin.RouterGroup, healthcheckHandler *handlders.HealthCheckHandler) *UsersRouter {
 	return &UsersRouter{
 		group:              group,
 		healthcheckHandler: healthcheckHandler,
