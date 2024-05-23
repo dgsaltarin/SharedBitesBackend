@@ -35,17 +35,24 @@ func setupGin() *gin.Engine {
 	ginInstance := gin.Default()
 
 	ginInstance.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	ginInstance.GET("/healthcheck", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "up",
+		})
+	})
+
 	return ginInstance
 }
 
+// invokeDependencyInjection invokes the dependency injection for the users vertical
 func invokeDependencyInjection(container *dig.Container, api *gin.RouterGroup) error {
 	return container.Invoke(func(h *dependencies.HandlersContainer) {
-		userRoutes.NewUserRoutes(api.Group("/api/v1/users"), h.HealthCheckHandler)
+		userRoutes.NewUserRoutes(api.Group("/users"), h.HealthCheckHandler)
 	})
 }
 
 func invokeDependencyInjectionBills(container *dig.Container, api *gin.RouterGroup) error {
 	return container.Invoke(func(h *dependencies.HandlersContainer) {
-		billsRoutes.NewBillsRoutes(api.Group("/api/v1/bills"), h.BillsHandler)
+		billsRoutes.NewBillsRoutes(api.Group("/bills"), h.BillsHandler)
 	})
 }

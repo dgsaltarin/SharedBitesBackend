@@ -1,7 +1,11 @@
 package application
 
+import (
+	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/domain/entity"
+)
+
 type UserService interface {
-	SignUp(username, email, password string) error
+	SignUp(user entity.User) error
 	Login(username, password string) (string, error)
 }
 

@@ -74,7 +74,7 @@ func (u *dynamodbUserRepository) GetUserByUsername(username string) (*models.Use
 }
 
 // UpserUser is the method in charge of insert or update one product
-func (u *dynamodbUserRepository) UpserUser(user *models.User) error {
+func (u *dynamodbUserRepository) UpsertUser(user *models.User) error {
 	// Define the input parameters for the PutItem operation
 	input := &dynamodb.PutItemInput{
 		TableName: aws.String(USER_TABLE), // Replace with your table name

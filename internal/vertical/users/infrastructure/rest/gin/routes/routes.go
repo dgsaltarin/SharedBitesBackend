@@ -5,21 +5,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UsersRouter struct {
+type usersRouter struct {
 	group              *gin.RouterGroup
 	healthcheckHandler *handlders.HealthCheckHandler
 }
 
 // NewRouter creates a new router for the users vertical
-func NewUserRoutes(group *gin.RouterGroup, healthcheckHandler *handlders.HealthCheckHandler) *UsersRouter {
-	return &UsersRouter{
+func NewUserRoutes(group *gin.RouterGroup, healthcheckHandler *handlders.HealthCheckHandler) *usersRouter {
+	usersRouter := &usersRouter{
 		group:              group,
 		healthcheckHandler: healthcheckHandler,
 	}
+
+	usersRouter.register()
+
+	return usersRouter
 }
 
 // register defines the routes for the users vertical
-func (ur *UsersRouter) register() {
-	group := ur.group.Group("/users")
-	group.GET("/healthcheck", ur.healthcheckHandler.HealthCheck)
+func (ur *usersRouter) register() {
+	ur.group.GET("/healthcheck", ur.healthcheckHandler.HealthCheck)
 }
