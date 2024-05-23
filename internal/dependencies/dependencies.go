@@ -15,6 +15,7 @@ type HandlersContainer struct {
 	BillsHandler       *billsHandler.BillsHandler
 }
 
+// NewWire creates a new container with all the dependencies
 func NewWire() *dig.Container {
 	container := dig.New()
 
@@ -29,7 +30,6 @@ func NewWire() *dig.Container {
 	container.Provide(billsHandler.NewBillsHandler)
 
 	// handlers dependencies
-	// Add dependencies
 	container.Provide(
 		func(
 			healthcheckHandler *handlers.HealthCheckHandler,
