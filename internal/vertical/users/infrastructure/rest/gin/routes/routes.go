@@ -6,15 +6,15 @@ import (
 )
 
 type usersRouter struct {
-	group              *gin.RouterGroup
-	healthcheckHandler *handlders.HealthCheckHandler
+	group    *gin.RouterGroup
+	handlers *handlders.UserHandler
 }
 
 // NewRouter creates a new router for the users vertical
-func NewUserRoutes(group *gin.RouterGroup, healthcheckHandler *handlders.HealthCheckHandler) *usersRouter {
+func NewUserRoutes(group *gin.RouterGroup, handlers *handlders.UserHandler) *usersRouter {
 	usersRouter := &usersRouter{
-		group:              group,
-		healthcheckHandler: healthcheckHandler,
+		group:    group,
+		handlers: handlers,
 	}
 
 	usersRouter.register()
@@ -24,5 +24,5 @@ func NewUserRoutes(group *gin.RouterGroup, healthcheckHandler *handlders.HealthC
 
 // register defines the routes for the users vertical
 func (ur *usersRouter) register() {
-	ur.group.GET("/healthcheck", ur.healthcheckHandler.HealthCheck)
+	ur.group.GET("/signup", ur.handlers.SignUp)
 }

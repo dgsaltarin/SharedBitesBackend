@@ -47,7 +47,7 @@ func setupGin() *gin.Engine {
 // invokeDependencyInjection invokes the dependency injection for the users vertical
 func invokeDependencyInjection(container *dig.Container, api *gin.RouterGroup) error {
 	return container.Invoke(func(h *dependencies.HandlersContainer) {
-		userRoutes.NewUserRoutes(api.Group("/users"), h.HealthCheckHandler)
+		userRoutes.NewUserRoutes(api.Group("/users"), h.UserHandler)
 	})
 }
 
