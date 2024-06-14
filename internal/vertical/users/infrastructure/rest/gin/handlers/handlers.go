@@ -15,9 +15,10 @@ type UserHandler struct {
 	mapper      mappers.Mappers
 }
 
-func NewUserHandler(userService services.UserService) UserHandler {
-	return UserHandler{
+func NewUserHandler(userService services.UserService, mapper mappers.Mappers) *UserHandler {
+	return &UserHandler{
 		userService: userService,
+		mapper:      mapper,
 	}
 }
 
@@ -31,7 +32,7 @@ func (uh *UserHandler) SignUp(c *gin.Context) {
 
 	user := uh.mapper.MapSignUpRequestToUser(userReuest)
 
-	if err := uh.userService.SignUp(user); err != nil {
+	if err := uh.userService.SignUp(*user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("Error signing up: %v", err)})
 		return
 	}

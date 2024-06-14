@@ -3,25 +3,15 @@ package services
 import (
 	services "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/application"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/domain/entity"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/domain/repository"
 )
 
-type userService struct {
-	repository repository.UserRepository
-}
+type userService struct{}
 
-func NewUserService(repository repository.UserRepository) services.UserService {
-	return &userService{
-		repository: repository,
-	}
+func NewUserService() services.UserService {
+	return &userService{}
 }
 
 func (u *userService) SignUp(user entity.User) error {
-	err := u.repository.UpsertUser(&user)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
