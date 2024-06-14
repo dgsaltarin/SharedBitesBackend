@@ -24,5 +24,5 @@ func NewUserRoutes(group *gin.RouterGroup, handlers *handlders.UserHandler) *use
 
 // register defines the routes for the users vertical
 func (ur *usersRouter) register() {
-	ur.group.GET("/signup", ur.handlers.SignUp)
+	ur.group.POST("/signup", ur.handlers.SignUp)
 }
