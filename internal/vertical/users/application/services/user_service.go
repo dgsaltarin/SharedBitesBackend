@@ -6,7 +6,6 @@ import (
 	services "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/application"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/domain/entity"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/domain/repository"
-	"github.com/google/uuid"
 )
 
 type userService struct {
@@ -20,8 +19,12 @@ func NewUserService(repository repository.UserRepository) services.UserService {
 }
 
 func (u *userService) SignUp(user entity.User) error {
-	user.ID = uuid.New().String()
-	err := u.repository.UpsertUser(&user)
+	newUser, err := entity.NewUser(user)
+	if err != nil {
+		fmt.Println("Error creating user: ", err)
+		return err
+	}
+	err = u.repository.UpsertUser(newUser)
 	if err != nil {
 		fmt.Println("Error signing up: ", err)
 		return err
