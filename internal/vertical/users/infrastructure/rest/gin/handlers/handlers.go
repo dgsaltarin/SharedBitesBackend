@@ -26,14 +26,14 @@ func (uh *UserHandler) SignUp(c *gin.Context) {
 	var userReuest request.SignUpRequest
 
 	if err := c.ShouldBindJSON(&userReuest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Errorf("Invalid request: %v", err)})
+		c.JSON(http.StatusBadRequest, gin.H{"error mapping": fmt.Errorf("Invalid request: %v", err)})
 		return
 	}
 
 	user := uh.mapper.MapSignUpRequestToUser(userReuest)
 
 	if err := uh.userService.SignUp(*user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("Error signing up: %v", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error creating": fmt.Errorf("Error signing up: %v", err)})
 		return
 	}
 
