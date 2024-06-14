@@ -5,6 +5,7 @@ import (
 	billsHandler "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/bills/infrastructure/rest/gin/handlers"
 	userService "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/application/services"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/mappers"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/repository/dynamodb"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/rest/gin/handlers"
 	userHandler "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/rest/gin/handlers"
 
@@ -25,6 +26,7 @@ func NewWire() *dig.Container {
 
 	// user dependencies
 	container.Provide(mappers.NewMappers)
+	container.Provide(dynamodb.NewDynamoDBUserRepository)
 	container.Provide(userService.NewUserService)
 	container.Provide(userHandler.NewUserHandler)
 	container.Provide(billsHandler.NewBillsHandler)
