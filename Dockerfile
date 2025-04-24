@@ -32,7 +32,7 @@ RUN go mod download
 COPY . .
 
 # Build the Go application
-RUN go build -o app ./cmd/sharedBites
+RUN go build -o app ./cmd/api
 
 # Create a new stage for the production image
 FROM alpine:latest AS production
