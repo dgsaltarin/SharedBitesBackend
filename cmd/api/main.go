@@ -1,53 +1,143 @@
-package api
+package main
 
 import (
-	"github.com/dgsaltarin/SharedBitesBackend/internal/dependencies"
-	billsRoutes "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/bills/infrastructure/rest/gin/routes"
-	userRoutes "github.com/dgsaltarin/SharedBitesBackend/internal/vertical/users/infrastructure/rest/gin/routes"
+	"context"
+	"firebase.google.com/go/v4/auth"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	firebase "firebase.google.com/go/v4"
+	"github.com/dgsaltarin/SharedBitesBackend/config"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/firebaseauth"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/sql"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driving/rest"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driving/rest/hanlders"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/application"
+	"github.com/dgsaltarin/SharedBitesBackend/platform/database"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"google.golang.org/api/option"
 )
 
-type RequestBody struct {
-	Image string
-}
-
 func main() {
-	ginInstance := setupGin()
+	// Load configuration
+	cfg := config.MustLoad()
 
-	routerGrup := ginInstance.Group("/api/v1")
+	// Initialize context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Create all handlers directly instead of using dig
-	handlers := dependencies.NewHandlers()
+	// Set up graceful shutdown
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	// Setup routes directly
-	setupUserRoutes(routerGrup, handlers)
-	setupBillsRoutes(routerGrup, handlers)
+	// Initialize Firebase
+	firebaseApp, err := initFirebase(ctx, cfg.Firebase.ServiceAccountKeyPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize Firebase: %v", err)
+	}
 
-	ginInstance.Run(":8080")
+	authClient, err := firebaseApp.Auth(ctx)
+	if err != nil {
+		log.Fatalf("Failed to initialize Firebase Auth client: %v", err)
+	}
+
+	// New Firebase Auth Provider
+	firebaseAuthProvider := firebaseauth.NewFirebaseAuthProvider(authClient)
+
+	// Initialize database connection with GORM
+	db := database.MustConnectGORM(cfg.Database)
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Failed to get underlying sql.DB: %v", err)
+	}
+	defer sqlDB.Close()
+
+	// Initialize repositories
+	userRepo := sql.NewGORMUserRepository(db)
+
+	// Initialize services
+	userService := application.NewUserService(userRepo, firebaseAuthProvider)
+
+	// Initialize handlers
+	userHandler := hanlders.NewUserHandler(*userService)
+
+	// Create a container for handlers
+	handlers := HandlersContainer{
+		UserHandler: userHandler,
+	}
+
+	// Set up router and routes
+	router := setupRouter(handlers, authClient)
+
+	// Create HTTP server
+	server := &http.Server{
+		Addr:    ":" + cfg.Server.Port,
+		Handler: router,
+	}
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("Starting server on port %s", cfg.Server.Port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	// Wait for termination signal
+	<-signalChan
+	log.Println("Shutdown signal received")
+
+	// Create shutdown timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	// Shutdown server gracefully
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Server shutdown failed: %v", err)
+	}
+
+	log.Println("Server stopped successfully")
 }
 
-// setupGin creates a new gin instance
-func setupGin() *gin.Engine {
-	ginInstance := gin.Default()
+// initFirebase initializes the Firebase app
+func initFirebase(ctx context.Context, serviceAccountKeyPath string) (*firebase.App, error) {
+	opt := option.WithCredentialsFile(serviceAccountKeyPath)
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		return nil, err
+	}
+	return app, nil
+}
 
-	ginInstance.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	ginInstance.GET("/healthcheck", func(c *gin.Context) {
+// setupRouter configures all routes and middleware
+func setupRouter(handlers HandlersContainer, authClient *auth.Client) *gin.Engine {
+	router := gin.Default()
+
+	// Health check endpoint
+	router.GET("/healthcheck", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "up",
 		})
 	})
 
-	return ginInstance
+	// Swagger documentation
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Setup user routes with Firebase auth
+	rest.SetupUserRouter(router, handlers.UserHandler, authClient)
+
+	// Setup other routes as needed
+
+	return router
 }
 
-// setupUserRoutes sets up the routes for the users vertical
-func setupUserRoutes(api *gin.RouterGroup, handlers *dependencies.HandlersContainer) {
-	userRoutes.NewUserRoutes(api.Group("/users"), handlers.UserHandler)
-}
-
-// setupBillsRoutes sets up the routes for the bills vertical
-func setupBillsRoutes(api *gin.RouterGroup, handlers *dependencies.HandlersContainer) {
-	billsRoutes.NewBillsRoutes(api.Group("/bills"), handlers.BillsHandler)
+// HandlersContainer holds all handlers
+type HandlersContainer struct {
+	UserHandler *hanlders.UserHandler
 }

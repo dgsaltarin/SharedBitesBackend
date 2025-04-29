@@ -66,8 +66,8 @@ func ConnectGORM(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	log.Println("Running GORM AutoMigrate...")
 	err = db.AutoMigrate(
 		&domain.User{},
-		&domain.Group{},   // Add other domain models you need tables for
-		&domain.Expense{}, // Add other domain models you need tables for
+		//&domain.Group{},   // Add other domain models you need tables for
+		//&domain.Expense{}, // Add other domain models you need tables for
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run GORM auto-migration: %w", err)
