@@ -14,22 +14,22 @@ import (
 
 const minPasswordLength = 8 // Example minimum password length
 
-// userService implements the UserService interface.
-type userService struct {
+// UserService implements the UserService interface.
+type UserService struct {
 	userRepo     ports.UserRepository
 	firebaseAuth ports.FirebaseAuthProvider
 }
 
 // NewUserService creates a new user service instance.
 func NewUserService(ur ports.UserRepository, fa ports.FirebaseAuthProvider) ports.UserService {
-	return &userService{
+	return &UserService{
 		userRepo:     ur,
 		firebaseAuth: fa,
 	}
 }
 
 // CreateUser orchestrates creating a user in Firebase and the local database.
-func (s *userService) CreateUser(ctx context.Context, name, email, password string) (*domain.User, error) {
+func (s *UserService) CreateUser(ctx context.Context, name, email, password string) (*domain.User, error) {
 	if name == "" {
 		return nil, domain.ErrUserNameEmpty
 	}
@@ -94,7 +94,7 @@ func (s *userService) CreateUser(ctx context.Context, name, email, password stri
 
 // UpdateUserProfile updates the profile data for an existing user identified by Firebase UID.
 // Only allows updating fields provided (non-nil pointers).
-func (s *userService) UpdateUserProfile(ctx context.Context, firebaseUID uuid.UUID, name *string /* add other updatable fields as pointers */) (*domain.User, error) {
+func (s *UserService) UpdateUserProfile(ctx context.Context, firebaseUID uuid.UUID, name *string /* add other updatable fields as pointers */) (*domain.User, error) {
 	user, err := s.userRepo.FindByFirebaseUID(ctx, firebaseUID)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
@@ -128,7 +128,7 @@ func (s *userService) UpdateUserProfile(ctx context.Context, firebaseUID uuid.UU
 }
 
 // GetUserByFirebaseUID retrieves a user profile by their Firebase UID.
-func (s *userService) GetUserByFirebaseUID(ctx context.Context, firebaseUID uuid.UUID) (*domain.User, error) {
+func (s *UserService) GetUserByFirebaseUID(ctx context.Context, firebaseUID uuid.UUID) (*domain.User, error) {
 	log.Printf("Getting user by Firebase UID: %s", firebaseUID)
 	user, err := s.userRepo.FindByFirebaseUID(ctx, firebaseUID)
 	if err != nil {
