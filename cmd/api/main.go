@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"go.uber.org/dig"
 )
 
 type RequestBody struct {
@@ -18,14 +17,13 @@ func main() {
 	ginInstance := setupGin()
 
 	routerGrup := ginInstance.Group("/api/v1")
-	container := dependencies.NewWire()
-	if err := invokeDependencyInjection(container, routerGrup); err != nil {
-		panic(err)
-	}
 
-	if err := invokeDependencyInjectionBills(container, routerGrup); err != nil {
-		panic(err)
-	}
+	// Create all handlers directly instead of using dig
+	handlers := dependencies.NewHandlers()
+
+	// Setup routes directly
+	setupUserRoutes(routerGrup, handlers)
+	setupBillsRoutes(routerGrup, handlers)
 
 	ginInstance.Run(":8080")
 }
@@ -44,15 +42,12 @@ func setupGin() *gin.Engine {
 	return ginInstance
 }
 
-// invokeDependencyInjection invokes the dependency injection for the users vertical
-func invokeDependencyInjection(container *dig.Container, api *gin.RouterGroup) error {
-	return container.Invoke(func(h *dependencies.HandlersContainer) {
-		userRoutes.NewUserRoutes(api.Group("/users"), h.UserHandler)
-	})
+// setupUserRoutes sets up the routes for the users vertical
+func setupUserRoutes(api *gin.RouterGroup, handlers *dependencies.HandlersContainer) {
+	userRoutes.NewUserRoutes(api.Group("/users"), handlers.UserHandler)
 }
 
-func invokeDependencyInjectionBills(container *dig.Container, api *gin.RouterGroup) error {
-	return container.Invoke(func(h *dependencies.HandlersContainer) {
-		billsRoutes.NewBillsRoutes(api.Group("/bills"), h.BillsHandler)
-	})
+// setupBillsRoutes sets up the routes for the bills vertical
+func setupBillsRoutes(api *gin.RouterGroup, handlers *dependencies.HandlersContainer) {
+	billsRoutes.NewBillsRoutes(api.Group("/bills"), handlers.BillsHandler)
 }
