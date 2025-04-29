@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/application"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
-	"log" // Use your logger
 	"net/http"
 	"time"
 
@@ -32,7 +31,6 @@ type CreateUserRequest struct {
 }
 
 // CreateUserResponse defines the JSON response after successfully creating a user.
-// IMPORTANT: Never return sensitive info like passwords or Firebase UIDs unless absolutely necessary.
 type CreateUserResponse struct {
 	ID        uuid.UUID `json:"id"` // Internal DB ID
 	Name      string    `json:"name"`
@@ -46,10 +44,7 @@ type CreateUserResponse struct {
 func (h *UserHandler) HandleCreateUser(c *gin.Context) {
 	var req CreateUserRequest
 
-	// Bind JSON request to the struct and validate using 'binding' tags
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("User creation bind/validation error: %v", err)
-		// Provide more specific error messages based on validation failures if desired
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload: " + err.Error()})
 		return
 	}
@@ -57,8 +52,6 @@ func (h *UserHandler) HandleCreateUser(c *gin.Context) {
 	// Call the application service to create the user
 	createdUser, err := h.userService.CreateUser(c.Request.Context(), req.Name, req.Email, req.Password)
 	if err != nil {
-		log.Printf("Error calling CreateUser service for email %s: %v", req.Email, err)
-
 		// Map domain errors to HTTP status codes
 		switch {
 		case errors.Is(err, domain.ErrUserAlreadyExists):
@@ -69,22 +62,85 @@ func (h *UserHandler) HandleCreateUser(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		case errors.Is(err, domain.ErrFirebaseUserCreationFailed),
 			errors.Is(err, domain.ErrDatabaseUserCreationFailed):
-			// Log the internal error but return a generic server error message
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user due to an internal issue."})
 		default:
-			// Catch-all for other unexpected errors
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "An unexpected error occurred."})
 		}
 		return
 	}
 
-	// Map the domain user to the response DTO
 	response := CreateUserResponse{
-		ID:        createdUser.ID, // ID is populated after successful DB save
+		ID:        createdUser.ID,
 		Name:      createdUser.Name,
 		Email:     createdUser.Email,
 		CreatedAt: createdUser.CreatedAt,
 	}
 
 	c.JSON(http.StatusCreated, response)
+}
+
+func (h *UserHandler) HandleUpdateUserProfile(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("userID"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload: " + err.Error()})
+		return
+	}
+
+	// Call the application service to update the user profile
+	updatedUser, err := h.userService.UpdateUserProfile(c.Request.Context(), userID, &req.Name)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case errors.Is(err, domain.ErrUserNameEmpty),
+			errors.Is(err, domain.ErrUserEmailEmpty):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "An unexpected error occurred."})
+		}
+		return
+	}
+
+	response := CreateUserResponse{
+		ID:        updatedUser.ID,
+		Name:      updatedUser.Name,
+		Email:     updatedUser.Email,
+		CreatedAt: updatedUser.CreatedAt,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *UserHandler) HandleGetUser(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("userID"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	user, err := h.userService.GetUserByFirebaseUID(c.Request.Context(), userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "An unexpected error occurred."})
+		}
+		return
+	}
+
+	response := CreateUserResponse{
+		ID:        user.ID,
+		Name:      user.Name,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
