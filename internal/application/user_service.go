@@ -21,7 +21,7 @@ type UserService struct {
 }
 
 // NewUserService creates a new user service instance.
-func NewUserService(ur ports.UserRepository, fa ports.FirebaseAuthProvider) ports.UserService {
+func NewUserService(ur ports.UserRepository, fa ports.FirebaseAuthProvider) *UserService {
 	return &UserService{
 		userRepo:     ur,
 		firebaseAuth: fa,
