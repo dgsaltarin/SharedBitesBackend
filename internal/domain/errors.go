@@ -24,6 +24,7 @@ var (
 	ErrDatabaseUserCreationFailed = errors.New("failed to create user in database")
 	ErrUserPasswordTooShort       = errors.New("user password is too short")
 	ErrFirebaseIDEmpty            = errors.New("firebase ID cannot be empty")
+	ErrFirebaseUserAlreadyExists  = errors.New("firebase user already exists")
 )
 
 // Text Analysis Errors (as previously defined)
