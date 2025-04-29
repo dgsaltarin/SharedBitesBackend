@@ -74,3 +74,16 @@ func (r *gormUserRepository) FindByEmail(ctx context.Context, email string) (*do
 	}
 	return &user, nil
 }
+
+func (r *gormUserRepository) FindByFirebaseUID(ctx context.Context, firebaseUID uuid.UUID) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("firebase_uid = ?", firebaseUID).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrUserNotFound // Map to domain error
+		}
+		log.Printf("Error finding user by Firebase UID %s: %v", firebaseUID, err)
+		return nil, fmt.Errorf("database error finding user by Firebase UID: %w", err)
+	}
+	return &user, nil
+}
