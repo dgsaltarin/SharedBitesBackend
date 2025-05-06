@@ -4,9 +4,11 @@ import (
 	"context"
 	"firebase.google.com/go/v4/auth"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+
 	"syscall"
 	"time"
 
@@ -26,7 +28,8 @@ import (
 
 func main() {
 	// Load configuration
-	cfg := config.MustLoad()
+	tempLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	cfg := config.MustLoad(tempLogger)
 
 	// Initialize context
 	ctx, cancel := context.WithCancel(context.Background())
