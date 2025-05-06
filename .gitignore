@@ -22,3 +22,5 @@ go.work
 
 #IGNORE .ENV
 .env
+
+./sharedBitesFirebase.json
