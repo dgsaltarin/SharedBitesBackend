@@ -9,7 +9,7 @@ type User struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"` // Internal DB ID
 	Name        string    `gorm:"size:255;not null"`
 	Email       string    `gorm:"size:255;not null;uniqueIndex"`
-	FirebaseUID string    `gorm:"type:uuid;not null"`
+	FirebaseUID string    `gorm:"size:255;not null;uniqueIndex"`
 	CreatedAt   time.Time `gorm:"index"`
 	UpdatedAt   time.Time
 }
