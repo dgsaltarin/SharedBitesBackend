@@ -1,19 +1,19 @@
 package middleware
 
 import (
-	"context"
 	"log" // Use your preferred logger
 	"net/http"
 	"strings"
 
 	"firebase.google.com/go/v4/auth"
+	"github.com/gin-gonic/gin"
 )
 
-// contextKey is a type used for context keys to avoid collisions.
 type contextKey string
 
 // UserContextKey is the key used to store authenticated user info in the context.
-const UserContextKey contextKey = "authenticatedUser"
+// For Gin, context keys are typically strings.
+const UserContextKey string = "authenticatedUser"
 
 // AuthenticatedUser holds information about the verified user.
 // Add more fields (Email, Name) if you extract them and need them downstream.
@@ -23,70 +23,63 @@ type AuthenticatedUser struct {
 	// Name string
 }
 
-// FirebaseAuthMiddleware creates a middleware handler that verifies Firebase ID tokens.
-func FirebaseAuthMiddleware(authClient *auth.Client) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				log.Println("Auth Middleware: Missing Authorization header") // Use logger
-				http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
-				return
-			}
+// FirebaseAuthMiddleware creates a Gin middleware handler that verifies Firebase ID tokens.
+func FirebaseAuthMiddleware(authClient *auth.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			log.Println("Auth Middleware: Missing Authorization header")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
+			return
+		}
 
-			// Expecting "Bearer <token>"
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-				log.Println("Auth Middleware: Invalid Authorization header format") // Use logger
-				http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
-				return
-			}
-			idToken := parts[1]
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			log.Println("Auth Middleware: Invalid Authorization header format")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
+			return
+		}
+		idToken := parts[1]
 
-			// Verify the ID token
-			token, err := authClient.VerifyIDToken(r.Context(), idToken)
-			if err != nil {
-				// Log the specific error for debugging
-				log.Printf("Auth Middleware: Error verifying Firebase ID token: %v", err)
-				// Return a generic error to the client
-				http.Error(w, "Invalid or expired authentication token", http.StatusUnauthorized)
-				return
-			}
+		token, err := authClient.VerifyIDToken(c.Request.Context(), idToken) // Use c.Request.Context()
+		if err != nil {
+			log.Printf("Auth Middleware: Error verifying Firebase ID token: %v", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired authentication token"})
+			return
+		}
 
-			// Token is valid, extract user info and add to context
-			authUser := AuthenticatedUser{
-				UID: token.UID,
-				// You can access other claims like:
-				// Email: token.Claims["email"].(string), // Requires type assertion and error checking
-				// Name: token.Claims["name"].(string),
-			}
+		authUser := AuthenticatedUser{
+			UID: token.UID,
+		}
 
-			// Add user info to context
-			ctx := context.WithValue(r.Context(), UserContextKey, authUser)
+		// Store user info in Gin's context.
+		c.Set(UserContextKey, authUser)
 
-			// Call the next handler with the updated context
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+		// Call the next handler
+		c.Next()
 	}
 }
 
-// GetUserFromContext retrieves the authenticated user from the request context.
+// GetUserFromGinContext retrieves the authenticated user from the Gin request context.
 // Returns the user and a boolean indicating if the user was found.
-func GetUserFromContext(ctx context.Context) (AuthenticatedUser, bool) {
-	user, ok := ctx.Value(UserContextKey).(AuthenticatedUser)
-	return user, ok
+func GetUserFromGinContext(c *gin.Context) (AuthenticatedUser, bool) {
+	user, exists := c.Get(UserContextKey)
+	if !exists {
+		return AuthenticatedUser{}, false
+	}
+	authUser, ok := user.(AuthenticatedUser)
+	return authUser, ok
 }
 
-// RequireAuth is a helper function for handlers to easily get the user or write an error.
-// DEPRECATED: It's generally better to let the middleware handle the 401/403 for missing/invalid auth,
-// and have handlers assume the user exists if the middleware passed. This function remains
-// primarily for checking if the context value was set correctly (defensive programming).
-func RequireAuth(w http.ResponseWriter, r *http.Request) (AuthenticatedUser, bool) {
-	user, ok := GetUserFromContext(r.Context())
+// DEPRECATED: This function demonstrates how to get user from context but isn't typically part of a Gin middleware flow.
+// Middleware should handle auth checks. Handlers then assume user if middleware passed.
+func RequireAuthGin(c *gin.Context) (AuthenticatedUser, bool) {
+	user, ok := GetUserFromGinContext(c)
 	if !ok {
-		// This *shouldn't* happen if the middleware is applied correctly
-		log.Println("Error: Authenticated user not found in context where expected")                    // Use logger
-		http.Error(w, "Authentication required (user context missing)", http.StatusInternalServerError) // Or 401/403?
+		log.Println("Error: Authenticated user not found in Gin context where expected")
+		// In a real handler, you might call c.AbortWithStatusJSON here if this check was critical
+		// but generally, this means the middleware isn't applied or failed unexpectedly.
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication required (user context missing)"})
 		return AuthenticatedUser{}, false
 	}
 	return user, true

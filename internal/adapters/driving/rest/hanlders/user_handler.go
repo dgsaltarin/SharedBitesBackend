@@ -2,26 +2,23 @@ package hanlders
 
 import (
 	"errors"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/application"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
 	"net/http"
 	"time"
+
+	"github.com/dgsaltarin/SharedBitesBackend/internal/application"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-// UserHandler handles HTTP requests related to users.
 type UserHandler struct {
 	userService application.UserService
 }
 
-// NewUserHandler creates a new UserHandler.
 func NewUserHandler(us application.UserService) *UserHandler {
 	return &UserHandler{userService: us}
 }
-
-// --- DTOs (Data Transfer Objects) ---
 
 // CreateUserRequest defines the expected JSON body for creating a user.
 type CreateUserRequest struct {
@@ -49,10 +46,8 @@ func (h *UserHandler) HandleCreateUser(c *gin.Context) {
 		return
 	}
 
-	// Call the application service to create the user
 	createdUser, err := h.userService.CreateUser(c.Request.Context(), req.Name, req.Email, req.Password)
 	if err != nil {
-		// Map domain errors to HTTP status codes
 		switch {
 		case errors.Is(err, domain.ErrUserAlreadyExists):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
@@ -92,7 +87,6 @@ func (h *UserHandler) HandleUpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Call the application service to update the user profile
 	updatedUser, err := h.userService.UpdateUserProfile(c.Request.Context(), userID, &req.Name)
 	if err != nil {
 		switch {
