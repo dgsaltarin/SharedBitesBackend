@@ -12,7 +12,7 @@ func SetupAppRoutes(
 	publicRoutes *gin.RouterGroup,
 	protectedRoutes *gin.RouterGroup,
 	userHandler *hanlders.UserHandler,
-	textractHandler *hanlders.TextractHandler,
+	billHandler *hanlders.BillHandler,
 ) {
 	// --- User Routes --- //
 	if userHandler != nil {
@@ -33,16 +33,18 @@ func SetupAppRoutes(
 		log.Println("WARN: UserHandler is nil, user routes not configured in SetupAppRoutes.")
 	}
 
-	// --- Textract Routes --- //
-	if textractHandler != nil {
-		// Example: Making Textract routes protected by default
-		// If you want some Textract routes to be public, create a group on 'publicRoutes'
-		textractProtected := protectedRoutes.Group("/textract")
+	// --- Bill Routes --- //
+	if billHandler != nil {
+		billProtected := protectedRoutes.Group("/bills")
 		{
-			textractProtected.POST("/analyze-bill", textractHandler.AnalyzeBill)
-			// Add other textract routes that need protection here
+			billProtected.POST("/upload", billHandler.UploadBill)
+			billProtected.POST("/:bill_id/analyze", billHandler.AnalyzeBill)
+			billProtected.GET("", billHandler.ListBills)
+			billProtected.GET("/:bill_id", billHandler.GetBill)
+			billProtected.GET("/:bill_id/status", billHandler.GetBillStatus)
+			billProtected.DELETE("/:bill_id", billHandler.DeleteBill)
 		}
 	} else {
-		log.Println("WARN: TextractHandler is nil, Textract routes not configured in SetupAppRoutes.")
+		log.Println("WARN: BillHandler is nil, Bill routes not configured in SetupAppRoutes.")
 	}
 }

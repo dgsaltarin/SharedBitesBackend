@@ -13,14 +13,18 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/dgsaltarin/SharedBitesBackend/config"
+	s3adapter "github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/filestore"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/firebaseauth"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/sql"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/texttrack"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driving/rest"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driving/rest/hanlders"
 	appmiddleware "github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driving/rest/middlewares"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/application"
-	"github.com/dgsaltarin/SharedBitesBackend/platform/aws"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/ports"
+	platformaws "github.com/dgsaltarin/SharedBitesBackend/platform/aws"
 	"github.com/dgsaltarin/SharedBitesBackend/platform/database"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -30,8 +34,8 @@ import (
 
 // HandlersContainer remains useful for organizing handlers within main.
 type HandlersContainer struct {
-	UserHandler     *hanlders.UserHandler
-	TextractHandler *hanlders.TextractHandler
+	UserHandler *hanlders.UserHandler
+	BillHandler *hanlders.BillHandler
 }
 
 // --- Main Application Setup ---
@@ -59,23 +63,56 @@ func main() {
 	sqlDB, _ := db.DB()
 	defer sqlDB.Close()
 
-	textractSvc, err := aws.NewTextractClient(ctx, cfg.AWS)
-	if err != nil {
-		log.Printf("WARN: Failed to initialize AWS Textract client: %v. Textract features unavailable.", err)
+	// Initialize AWS clients
+	var awsConfig aws.Config
+	var awsConfigErr error
+	awsConfig, awsConfigErr = platformaws.LoadAWSConfig(ctx, cfg.AWS)
+	if awsConfigErr != nil {
+		log.Printf("WARN: Failed to load AWS config: %v. AWS features may be unavailable.", awsConfigErr)
+		// We'll continue, but AWS services won't be available
 	}
 
+	// Initialize Textract client
+	var textractClient *platformaws.TextractClient
+	var textProcessor *texttrack.AWSTextractAdapter
+	var fileStore ports.FileStore
+	var billHandler *hanlders.BillHandler
+
+	if awsConfigErr == nil { // Only initialize AWS-dependent services if AWS config loaded successfully
+		textractClient, err = platformaws.NewTextractClient(ctx, cfg.AWS)
+		if err != nil {
+			log.Printf("WARN: Failed to initialize AWS Textract client: %v. Textract features unavailable.", err)
+		}
+
+		// Initialize text processor (Textract adapter)
+		textProcessor = texttrack.NewAWSTextractAdapter(awsConfig)
+
+		// Initialize file store (S3 adapter)
+		fileStore, err = s3adapter.NewS3FileStore(ctx, cfg.AWS)
+		if err != nil {
+			log.Printf("WARN: Failed to initialize S3 file store: %v. File storage features unavailable.", err)
+		}
+
+		// Only initialize the bill service if all AWS dependencies are available
+		if textractClient != nil && textProcessor != nil && fileStore != nil {
+			billService := application.NewBillService(textractClient, fileStore, textProcessor, db)
+			billHandler = hanlders.NewBillHandler(billService)
+		} else {
+			log.Println("WARN: BillService not initialized due to missing AWS dependencies.")
+		}
+	}
+
+	// Initialize repositories
 	userRepo := sql.NewGORMUserRepository(db)
+
+	// Initialize services
 	userService := application.NewUserService(userRepo, firebaseAuthProvider)
 
+	// Initialize handlers
 	userHandler := hanlders.NewUserHandler(*userService)
-	var textractHandler *hanlders.TextractHandler
-	if textractSvc != nil {
-		textractHandler = hanlders.NewTextractHandler(textractSvc)
-	} else {
-		log.Println("INFO: TextractHandler not initialized.")
-	}
 
-	router := setupRouter(userHandler, textractHandler, authClient)
+	// Setup router
+	router := setupRouter(userHandler, billHandler, authClient)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Server.Port,
@@ -110,7 +147,7 @@ func initFirebase(ctx context.Context, serviceAccountKeyPath string) (*firebase.
 	return app, nil
 }
 
-func setupRouter(userHandler *hanlders.UserHandler, textractHandler *hanlders.TextractHandler, authClient *auth.Client) *gin.Engine {
+func setupRouter(userHandler *hanlders.UserHandler, billHandler *hanlders.BillHandler, authClient *auth.Client) *gin.Engine {
 	router := gin.Default()
 
 	router.GET("/healthcheck", func(c *gin.Context) {
@@ -127,7 +164,7 @@ func setupRouter(userHandler *hanlders.UserHandler, textractHandler *hanlders.Te
 	// Use the Gin-native Firebase auth middleware directly
 	protectedApiV1.Use(appmiddleware.FirebaseAuthMiddleware(authClient))
 
-	rest.SetupAppRoutes(publicApiV1, protectedApiV1, userHandler, textractHandler)
+	rest.SetupAppRoutes(publicApiV1, protectedApiV1, userHandler, billHandler)
 
 	return router
 }

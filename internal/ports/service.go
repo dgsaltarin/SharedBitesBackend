@@ -23,9 +23,10 @@ type UploadBillParamsDTO struct {
 }
 
 type BillService interface {
-	UploadAndInitiateProcessing(ctx context.Context, params UploadBillParamsDTO) (*domain.Bill, error)
-	GetBillDetails(ctx context.Context, billID uuid.UUID, userID uuid.UUID) (*domain.Bill, error)
-	ListUserBills(ctx context.Context, userID uuid.UUID, offset, limit int) ([]domain.Bill, int64, error) // Returns bills and total count
-	DeleteBill(ctx context.Context, billID uuid.UUID, userID uuid.UUID) error
+	UploadBill(ctx context.Context, req domain.UploadBillRequest) (*domain.Bill, error)
+	AnalyzeBill(ctx context.Context, billID uuid.UUID) error
+	GetBill(ctx context.Context, billID, userID uuid.UUID) (*domain.BillWithURL, error)
+	ListBills(ctx context.Context, userID uuid.UUID, options domain.ListBillsOptions) ([]domain.Bill, int64, error)
 	GetBillStatus(ctx context.Context, billID uuid.UUID, userID uuid.UUID) (domain.BillStatus, error)
+	DeleteBill(ctx context.Context, billID uuid.UUID, userID uuid.UUID) error
 }
