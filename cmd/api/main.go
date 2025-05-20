@@ -43,9 +43,11 @@ func main() {
 	tempLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	cfg := config.MustLoad(tempLogger)
 
+	// create a cancellanbl context and defer the cancel function to cancel the context when the main function returns
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// create a channel to receive the signal to stop the server from the OS
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
@@ -69,7 +71,6 @@ func main() {
 	awsConfig, awsConfigErr = platformaws.LoadAWSConfig(ctx, cfg.AWS)
 	if awsConfigErr != nil {
 		log.Printf("WARN: Failed to load AWS config: %v. AWS features may be unavailable.", awsConfigErr)
-		// We'll continue, but AWS services won't be available
 	}
 
 	// Initialize Textract client
@@ -78,16 +79,14 @@ func main() {
 	var fileStore ports.FileStore
 	var billHandler *hanlders.BillHandler
 
-	if awsConfigErr == nil { // Only initialize AWS-dependent services if AWS config loaded successfully
+	if awsConfigErr == nil {
 		textractClient, err = platformaws.NewTextractClient(ctx, cfg.AWS)
 		if err != nil {
 			log.Printf("WARN: Failed to initialize AWS Textract client: %v. Textract features unavailable.", err)
 		}
 
-		// Initialize text processor (Textract adapter)
 		textProcessor = texttrack.NewAWSTextractAdapter(awsConfig)
 
-		// Initialize file store (S3 adapter)
 		fileStore, err = s3adapter.NewS3FileStore(ctx, cfg.AWS)
 		if err != nil {
 			log.Printf("WARN: Failed to initialize S3 file store: %v. File storage features unavailable.", err)
