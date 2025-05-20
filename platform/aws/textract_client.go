@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/textract"
-	"github.com/aws/aws-sdk-go-v2/service/textract/types"
 	appconfig "github.com/dgsaltarin/SharedBitesBackend/config"
 )
 
@@ -46,27 +45,3 @@ func NewTextractClient(ctx context.Context, appCfg appconfig.AWSConfig) (*Textra
 	svc := textract.NewFromConfig(cfg)
 	return &TextractClient{client: svc}, nil
 }
-
-// DetectText performs text detection on the given document bytes.
-// It returns the detected text blocks or an error.
-func (tc *TextractClient) DetectText(ctx context.Context, documentBytes []byte) ([]types.Block, error) {
-	if tc.client == nil {
-		return nil, fmt.Errorf("Textract client not initialized")
-	}
-
-	input := &textract.DetectDocumentTextInput{
-		Document: &types.Document{
-			Bytes: documentBytes,
-		},
-	}
-
-	resp, err := tc.client.DetectDocumentText(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect document text: %w", err)
-	}
-
-	return resp.Blocks, nil
-}
-
-// TODO: Add function for AnalyzeDocument if needed for forms/tables
-// func (tc *TextractClient) AnalyzeDocument(...) (...) { ... }
