@@ -2,10 +2,11 @@ package database
 
 import (
 	"fmt"
-	"github.com/dgsaltarin/SharedBitesBackend/config"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
 	"log"
 	"time"
+
+	"github.com/dgsaltarin/SharedBitesBackend/config"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -66,6 +67,8 @@ func ConnectGORM(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	log.Println("Running GORM AutoMigrate...")
 	err = db.AutoMigrate(
 		&domain.User{},
+		&domain.Bill{},
+		&domain.LineItem{},
 		//&domain.Group{},   // Add other domain models you need tables for
 		//&domain.Expense{}, // Add other domain models you need tables for
 	)

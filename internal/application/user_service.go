@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
-	"github.com/dgsaltarin/SharedBitesBackend/internal/ports"
-	"github.com/google/uuid"
 	"log"
 	"time"
 	"unicode/utf8"
+
+	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/ports"
 )
 
 const minPasswordLength = 8 // Example minimum password length
@@ -94,7 +94,7 @@ func (s *UserService) CreateUser(ctx context.Context, name, email, password stri
 
 // UpdateUserProfile updates the profile data for an existing user identified by Firebase UID.
 // Only allows updating fields provided (non-nil pointers).
-func (s *UserService) UpdateUserProfile(ctx context.Context, firebaseUID uuid.UUID, name *string /* add other updatable fields as pointers */) (*domain.User, error) {
+func (s *UserService) UpdateUserProfile(ctx context.Context, firebaseUID string, name *string /* add other updatable fields as pointers */) (*domain.User, error) {
 	user, err := s.userRepo.FindByFirebaseUID(ctx, firebaseUID)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
@@ -128,7 +128,7 @@ func (s *UserService) UpdateUserProfile(ctx context.Context, firebaseUID uuid.UU
 }
 
 // GetUserByFirebaseUID retrieves a user profile by their Firebase UID.
-func (s *UserService) GetUserByFirebaseUID(ctx context.Context, firebaseUID uuid.UUID) (*domain.User, error) {
+func (s *UserService) GetUserByFirebaseUID(ctx context.Context, firebaseUID string) (*domain.User, error) {
 	log.Printf("Getting user by Firebase UID: %s", firebaseUID)
 	user, err := s.userRepo.FindByFirebaseUID(ctx, firebaseUID)
 	if err != nil {

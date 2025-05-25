@@ -35,11 +35,6 @@ func SetupAppRoutes(
 
 	// --- Bill Routes --- //
 	if billHandler != nil {
-		billPublic := publicRoutes.Group("/bills")
-		{
-			billPublic.POST("/upload", billHandler.UploadBill)
-		}
-
 		billProtected := protectedRoutes.Group("/bills")
 		{
 			billProtected.POST("/upload", billHandler.UploadBill)

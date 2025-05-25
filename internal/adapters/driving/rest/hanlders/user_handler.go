@@ -75,11 +75,7 @@ func (h *UserHandler) HandleCreateUser(c *gin.Context) {
 }
 
 func (h *UserHandler) HandleUpdateUserProfile(c *gin.Context) {
-	userID, err := uuid.Parse(c.Param("userID"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	userID := c.Param("userID")
 
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -112,11 +108,7 @@ func (h *UserHandler) HandleUpdateUserProfile(c *gin.Context) {
 }
 
 func (h *UserHandler) HandleGetUser(c *gin.Context) {
-	userID, err := uuid.Parse(c.Param("userID"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	userID := c.Param("userID")
 
 	user, err := h.userService.GetUserByFirebaseUID(c.Request.Context(), userID)
 	if err != nil {

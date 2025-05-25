@@ -111,7 +111,7 @@ func main() {
 	userHandler := hanlders.NewUserHandler(*userService)
 
 	// Setup router
-	router := setupRouter(userHandler, billHandler, authClient)
+	router := setupRouter(userHandler, billHandler, authClient, userService)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Server.Port,
@@ -146,7 +146,8 @@ func initFirebase(ctx context.Context, serviceAccountKeyPath string) (*firebase.
 	return app, nil
 }
 
-func setupRouter(userHandler *hanlders.UserHandler, billHandler *hanlders.BillHandler, authClient *auth.Client) *gin.Engine {
+func setupRouter(userHandler *hanlders.UserHandler, billHandler *hanlders.BillHandler,
+	authClient *auth.Client, userService *application.UserService) *gin.Engine {
 	router := gin.Default()
 
 	router.GET("/healthcheck", func(c *gin.Context) {
@@ -162,6 +163,7 @@ func setupRouter(userHandler *hanlders.UserHandler, billHandler *hanlders.BillHa
 	protectedApiV1 := apiV1.Group("/")
 	// Use the Gin-native Firebase auth middleware directly
 	protectedApiV1.Use(appmiddleware.FirebaseAuthMiddleware(authClient))
+	protectedApiV1.Use(appmiddleware.UserLookupMiddleware(userService))
 
 	rest.SetupAppRoutes(publicApiV1, protectedApiV1, userHandler, billHandler)
 

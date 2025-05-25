@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"firebase.google.com/go/v4/auth"
+	"github.com/dgsaltarin/SharedBitesBackend/internal/application"
 	"github.com/gin-gonic/gin"
 )
 
@@ -56,6 +57,29 @@ func FirebaseAuthMiddleware(authClient *auth.Client) gin.HandlerFunc {
 		c.Set(UserContextKey, authUser)
 
 		// Call the next handler
+		c.Next()
+	}
+}
+
+func UserLookupMiddleware(userService *application.UserService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get authenticated user from context
+		authUser, exists := GetUserFromGinContext(c)
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+
+		// Look up user in database
+		user, err := userService.GetUserByFirebaseUID(c.Request.Context(), authUser.UID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			return
+		}
+
+		// Set user ID in context
+		c.Set("userID", user.ID)
+
 		c.Next()
 	}
 }

@@ -21,7 +21,7 @@ type LineItem struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"` // If line items can be soft-deleted individually
 }
 
-func TableName() string {
+func (l *LineItem) TableName() string {
 	return "bill_line_items"
 }
 

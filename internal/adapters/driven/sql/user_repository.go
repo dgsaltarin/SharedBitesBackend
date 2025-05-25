@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log" // Use your logger
+
 	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/ports"
-	"log" // Use your logger
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -75,7 +76,7 @@ func (r *gormUserRepository) FindByEmail(ctx context.Context, email string) (*do
 	return &user, nil
 }
 
-func (r *gormUserRepository) FindByFirebaseUID(ctx context.Context, firebaseUID uuid.UUID) (*domain.User, error) {
+func (r *gormUserRepository) FindByFirebaseUID(ctx context.Context, firebaseUID string) (*domain.User, error) {
 	var user domain.User
 	err := r.db.WithContext(ctx).Where("firebase_uid = ?", firebaseUID).First(&user).Error
 	if err != nil {
