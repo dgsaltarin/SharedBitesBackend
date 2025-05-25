@@ -25,15 +25,16 @@ func NewBillHandler(billService *application.BillService) *BillHandler {
 }
 
 // UploadBill godoc
-// @Summary Upload a bill image
-// @Description Upload a bill image to be stored and later analyzed
+// @Summary Upload a bill image for processing
+// @Description Upload a bill image file (JPEG, PNG, PDF) to be stored in S3 and prepared for OCR analysis. Requires authentication.
 // @Tags Bills
 // @Accept mpfd
 // @Produce json
-// @Param image formData file true "Image file of the bill to upload"
-// @Success 200 {object} gin.H{"bill_id": string, "message": string} "Successfully uploaded bill"
-// @Failure 400 {object} gin.H{"error": string} "Bad Request - e.g., no file or invalid file"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error"
+// @Param image formData file true "Image file of the bill to upload (JPEG, PNG, PDF supported)"
+// @Success 200 {object} gin.H{"bill_id": string, "message": string} "Successfully uploaded bill with generated UUID"
+// @Failure 400 {object} gin.H{"error": string} "Bad Request - missing file, invalid file format, or malformed request"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - file storage or database error"
 // @Router /bills/upload [post]
 func (h *BillHandler) UploadBill(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)
@@ -83,15 +84,16 @@ func (h *BillHandler) UploadBill(c *gin.Context) {
 }
 
 // AnalyzeBill godoc
-// @Summary Analyze a previously uploaded bill
-// @Description Process a bill with Textract to extract information
+// @Summary Analyze a bill using AWS Textract OCR
+// @Description Process a previously uploaded bill with AWS Textract to extract vendor information, line items, and transaction details. Returns the complete analyzed bill data upon successful processing.
 // @Tags Bills
 // @Produce json
-// @Param bill_id path string true "Bill ID to analyze"
-// @Success 200 {object} gin.H{"message": string} "Successfully analyzed bill"
-// @Failure 400 {object} gin.H{"error": string} "Bad Request - e.g., invalid bill ID"
-// @Failure 404 {object} gin.H{"error": string} "Not Found - Bill not found"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error"
+// @Param bill_id path string true "UUID of the bill to analyze"
+// @Success 200 {object} domain.BillDTO "Successfully analyzed bill with extracted data"
+// @Failure 400 {object} gin.H{"error": string} "Bad Request - invalid bill ID format"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Failure 404 {object} gin.H{"error": string} "Not Found - bill not found or not owned by user"
+// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - Textract processing or database error"
 // @Router /bills/{bill_id}/analyze [post]
 func (h *BillHandler) AnalyzeBill(c *gin.Context) {
 	billIDStr := c.Param("bill_id")
@@ -111,19 +113,38 @@ func (h *BillHandler) AnalyzeBill(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Bill analyzed successfully"})
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, ok := userIDStr.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	billWithURL, err := h.billService.GetBill(c, billID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve bill: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, formatBillResponse(billWithURL))
 }
 
 // GetBill godoc
-// @Summary Get a bill by ID
-// @Description Retrieve bill details including extracted information and line items
+// @Summary Retrieve a bill with complete details
+// @Description Get comprehensive bill information including metadata, OCR-extracted data, line items, and a pre-signed URL for file access. Only returns bills owned by the authenticated user.
 // @Tags Bills
 // @Produce json
-// @Param bill_id path string true "Bill ID to retrieve"
-// @Success 200 {object} domain.BillDTO "Bill details"
-// @Failure 400 {object} gin.H{"error": string} "Bad Request - e.g., invalid bill ID"
-// @Failure 404 {object} gin.H{"error": string} "Not Found - Bill not found"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error"
+// @Param bill_id path string true "UUID of the bill to retrieve"
+// @Success 200 {object} domain.BillDTO "Complete bill details with file URL and extracted data"
+// @Failure 400 {object} gin.H{"error": string} "Bad Request - invalid bill ID format"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Failure 404 {object} gin.H{"error": string} "Not Found - bill not found or not owned by user"
+// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - database or file storage error"
 // @Router /bills/{bill_id} [get]
 func (h *BillHandler) GetBill(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)
@@ -160,15 +181,16 @@ func (h *BillHandler) GetBill(c *gin.Context) {
 }
 
 // ListBills godoc
-// @Summary List bills for the authenticated user
-// @Description List bills with pagination and optional filtering
+// @Summary List user's bills with pagination and filtering
+// @Description Retrieve a paginated list of bills owned by the authenticated user. Supports filtering by processing status and includes summary information for each bill.
 // @Tags Bills
 // @Produce json
-// @Param limit query int false "Number of bills to return (default 10)"
-// @Param offset query int false "Number of bills to skip (default 0)"
-// @Param status query string false "Filter by status (uploaded, pending, processing, analyzed, failed)"
-// @Success 200 {object} domain.ListBillsResponseDTO "List of bills"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error"
+// @Param limit query int false "Number of bills to return per page (default: 10, max: 100)"
+// @Param offset query int false "Number of bills to skip for pagination (default: 0)"
+// @Param status query string false "Filter by processing status: uploaded, pending, processing, analyzed, failed"
+// @Success 200 {object} domain.ListBillsResponseDTO "Paginated list of bill summaries with total count"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - database query error"
 // @Router /bills [get]
 func (h *BillHandler) ListBills(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)
@@ -232,15 +254,16 @@ func (h *BillHandler) ListBills(c *gin.Context) {
 }
 
 // GetBillStatus godoc
-// @Summary Get bill status
-// @Description Retrieve just the status of a bill
+// @Summary Get current processing status of a bill
+// @Description Retrieve only the current processing status of a specific bill. Useful for polling during OCR processing without fetching complete bill data.
 // @Tags Bills
 // @Produce json
-// @Param bill_id path string true "Bill ID to check"
-// @Success 200 {object} gin.H{"status": string} "Bill status"
-// @Failure 400 {object} gin.H{"error": string} "Bad Request - e.g., invalid bill ID"
-// @Failure 404 {object} gin.H{"error": string} "Not Found - Bill not found"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error"
+// @Param bill_id path string true "UUID of the bill to check status for"
+// @Success 200 {object} gin.H{"status": string} "Current bill status (uploaded, pending, processing, analyzed, failed)"
+// @Failure 400 {object} gin.H{"error": string} "Bad Request - invalid bill ID format"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Failure 404 {object} gin.H{"error": string} "Not Found - bill not found or not owned by user"
+// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - database query error"
 // @Router /bills/{bill_id}/status [get]
 func (h *BillHandler) GetBillStatus(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)
@@ -277,15 +300,16 @@ func (h *BillHandler) GetBillStatus(c *gin.Context) {
 }
 
 // DeleteBill godoc
-// @Summary Delete a bill
-// @Description Delete a bill and all associated data
+// @Summary Permanently delete a bill and all associated data
+// @Description Remove a bill from the system including its file from S3 storage, database record, and all extracted line items. This action cannot be undone. Only the bill owner can delete their bills.
 // @Tags Bills
 // @Produce json
-// @Param bill_id path string true "Bill ID to delete"
-// @Success 200 {object} gin.H{"message": string} "Successfully deleted bill"
-// @Failure 400 {object} gin.H{"error": string} "Bad Request - e.g., invalid bill ID"
-// @Failure 404 {object} gin.H{"error": string} "Not Found - Bill not found"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error"
+// @Param bill_id path string true "UUID of the bill to permanently delete"
+// @Success 200 {object} gin.H{"message": string} "Bill and all associated data successfully deleted"
+// @Failure 400 {object} gin.H{"error": string} "Bad Request - invalid bill ID format"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Failure 404 {object} gin.H{"error": string} "Not Found - bill not found or not owned by user"
+// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - database or file storage deletion error"
 // @Router /bills/{bill_id} [delete]
 func (h *BillHandler) DeleteBill(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)

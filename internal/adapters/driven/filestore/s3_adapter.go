@@ -78,7 +78,8 @@ func (s *s3FileStore) UploadFile(ctx context.Context, file io.Reader, destinatio
 		return "", fmt.Errorf("failed to upload file to S3 (bucket: %s, key: %s): %w", s.bucketName, destinationPath, err)
 	}
 
-	return destinationPath, nil // The destinationPath is the storage path (key)
+	s3URI := fmt.Sprintf("s3://%s/%s", s.bucketName, destinationPath)
+	return s3URI, nil
 }
 
 // GetFileURL generates a pre-signed URL for accessing an S3 object.
