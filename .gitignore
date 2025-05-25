@@ -24,3 +24,40 @@ go.work
 .env
 
 ./sharedBitesFirebase.json
+
+# Debugging files
+*.pprof
+*.prof
+*.trace
+debug
+debug.log
+*.debug
+cpu.prof
+mem.prof
+goroutine.prof
+heap.prof
+allocs.prof
+block.prof
+mutex.prof
+
+# IDE debugging files
+.vscode/launch.json
+.vscode/settings.json
+.idea/runConfigurations/
+*.iml
+
+# Delve debugger
+__debug_bin*
+dlv-dap*
+
+# Log files
+*.log
+logs/
+log/
+
+# Temporary debugging files
+tmp/
+temp/
+.tmp/
+debug_*
+test_*
