@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-deploy:
-    runs-on: raspberrypi-daniel-lab # Build and deploy directly on your Pi
+    runs-on: self-hosted # Build and deploy directly on your Pi
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
