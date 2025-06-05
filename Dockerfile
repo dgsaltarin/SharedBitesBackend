@@ -1,5 +1,5 @@
 # Multi-stage build for Raspberry Pi (ARM64)
-FROM --platform=linux/arm64 golang:1.21-alpine AS build
+FROM --platform=linux/arm64 golang:1.23-alpine AS build
 
 # Set the working directory inside the container
 WORKDIR /app
