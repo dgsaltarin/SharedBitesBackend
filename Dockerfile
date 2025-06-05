@@ -9,13 +9,22 @@ RUN apk add --no-cache \
     gcc \
     musl-dev \
     git \
-    ca-certificates
+    ca-certificates \
+    && update-ca-certificates
+
+# Set Go environment variables for better module handling
+ENV GO111MODULE=on
+ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=sum.golang.org
 
 # Copy the Go modules files first for better caching
 COPY go.mod go.sum ./
 
-# Download and cache Go module dependencies
-RUN go mod download
+# Download and cache Go module dependencies with verbose output
+RUN go mod download -x
+
+# Verify modules
+RUN go mod verify
 
 # Copy the rest of the application source code
 COPY . .
@@ -31,6 +40,7 @@ FROM --platform=linux/arm64 alpine:latest AS production
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
+    wget \
     && update-ca-certificates
 
 # Create a non-root user for security
