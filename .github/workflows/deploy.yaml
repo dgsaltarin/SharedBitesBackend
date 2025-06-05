@@ -1,67 +1,80 @@
-name: Deploy Backend to Self-Hosted Runner on Pi
+name: Deploy Backend Natively on Raspberry Pi
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  build: # Build job still runs on GitHub-hosted runners (for speed and cross-compilation)
-    runs-on: ubuntu-latest
+  build-and-deploy:
+    runs-on: raspberrypi-daniel-lab # Build and deploy directly on your Pi
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          go-version: '1.23'
+          cache: true
 
-      - name: Determine Image Tag
-        id: image_tag
-        run: echo "TAG=$(echo ${GITHUB_SHA} | cut -c1-7)" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/arm64 # Crucial for Raspberry Pi
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/sharedbites-backend:${{ steps.image_tag.outputs.TAG }}
-            ${{ secrets.DOCKER_USERNAME }}/sharedbites-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-
-  deploy:
-    needs: build # Depends on the build job completing
-    runs-on: raspberrypi-daniel-lab # IMPORTANT: Specifies to run on your Pi
-    steps:
-      - name: Pull and restart container
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      - name: Build application natively
         run: |
-          export IMAGE_NAME=${DOCKER_USERNAME}/sharedbites-backend
-          export IMAGE_TAG=latest
+          echo "Building application natively on ARM64..."
+          go mod download
+          go mod verify
+          CGO_ENABLED=1 go build -ldflags="-w -s" -trimpath -o app ./cmd/api
+
+      - name: Create optimized Dockerfile for local build
+        run: |
+          cat > Dockerfile.local << 'EOF'
+          FROM alpine:latest
+
+          # Install runtime dependencies
+          RUN apk add --no-cache \
+              ca-certificates \
+              tzdata \
+              wget \
+              && update-ca-certificates
+
+          # Create a non-root user for security
+          RUN addgroup -g 1001 -S appgroup && \
+              adduser -u 1001 -S appuser -G appgroup
+
+          # Set the working directory
+          WORKDIR /app
+
+          # Copy the pre-built executable
+          COPY app .
+
+          # Change ownership to the non-root user
+          RUN chown -R appuser:appgroup /app
+
+          # Switch to non-root user
+          USER appuser
+
+          # Expose the port the application listens on
+          EXPOSE 8080
+
+          # Add health check
+          HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+              CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
+
+          # Command to run the application
+          CMD ["./app"]
+          EOF
+
+      - name: Build Docker image locally
+        run: |
+          echo "Building Docker image locally..."
+          docker build -f Dockerfile.local -t sharedbites-backend:latest .
+
+      - name: Deploy container
+        run: |
           export CONTAINER_NAME=sharedbites-backend-container
           export APP_PORT=8080
           export HOST_PORT=8080
-
-          # Login to Docker Hub (if image is private and runner isn't already logged in)
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-          # Pull the latest image
-          docker pull $IMAGE_NAME:$IMAGE_TAG
 
           # Stop and remove existing container if it exists
           if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
@@ -78,6 +91,8 @@ jobs:
             --name $CONTAINER_NAME \
             -p $HOST_PORT:$APP_PORT \
             --restart unless-stopped \
+            --memory="512m" \
+            --cpus="1.0" \
             -e DB_DSN="${{ secrets.DB_DSN }}" \
             -e AWS_REGION="${{ secrets.AWS_REGION }}" \
             -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
@@ -85,7 +100,35 @@ jobs:
             -e AWS_S3_BUCKET="${{ secrets.AWS_S3_BUCKET }}" \
             -e FIREBASE_SERVICE_ACCOUNT_KEY_PATH="/app/firebase-key.json" \
             -v ${{ secrets.FIREBASE_KEY_PATH }}:/app/firebase-key.json:ro \
-            $IMAGE_NAME:$IMAGE_TAG
+            sharedbites-backend:latest
 
-          # Clean up old images
-          docker image prune -af
+          # Clean up old images (keep recent ones)
+          docker image prune -af --filter "until=24h"
+
+          # Show container status
+          echo "Container status:"
+          docker ps -f name=$CONTAINER_NAME
+
+          # Show container logs (last 10 lines)
+          echo "Recent container logs:"
+          docker logs --tail 10 $CONTAINER_NAME
+
+      - name: Cleanup build artifacts
+        run: |
+          echo "Cleaning up build artifacts..."
+          rm -f app Dockerfile.local
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for application to start..."
+          sleep 10
+
+          # Test if the application is responding
+          if curl -f http://localhost:8080/healthcheck > /dev/null 2>&1; then
+            echo "✅ Application is running and responding to health checks"
+          else
+            echo "❌ Application health check failed"
+            echo "Container logs:"
+            docker logs sharedbites-backend-container
+            exit 1
+          fi
