@@ -87,6 +87,15 @@ jobs:
         run: |
           echo "Setting up PostgreSQL..."
 
+          # Validate required secrets
+          if [ -z "${{ secrets.POSTGRES_PASSWORD }}" ]; then
+            echo "❌ POSTGRES_PASSWORD secret is not set or is empty"
+            echo "Please add POSTGRES_PASSWORD to your GitHub repository secrets"
+            exit 1
+          fi
+
+          echo "✅ POSTGRES_PASSWORD secret is configured"
+
           # Create PostgreSQL network if it doesn't exist
           docker network create sharedbites-network 2>/dev/null || true
 
@@ -101,6 +110,7 @@ jobs:
           fi
 
           # Run PostgreSQL container
+          echo "Starting PostgreSQL container..."
           docker run -d \
             --name sharedbites-postgres \
             --network sharedbites-network \
@@ -112,6 +122,12 @@ jobs:
             --restart unless-stopped \
             postgres:15-alpine
 
+          # Check if container started successfully
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to start PostgreSQL container"
+            exit 1
+          fi
+
           echo "✅ PostgreSQL container started"
 
           # Wait for PostgreSQL to be ready with better debugging
@@ -122,7 +138,10 @@ jobs:
             # Check if container is running
             if ! docker ps -q -f name=sharedbites-postgres | grep -q .; then
               echo "❌ PostgreSQL container is not running"
+              echo "Container logs:"
               docker logs sharedbites-postgres
+              echo "Container status:"
+              docker ps -a -f name=sharedbites-postgres
               exit 1
             fi
             
