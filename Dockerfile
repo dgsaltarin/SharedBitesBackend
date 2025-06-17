@@ -53,6 +53,9 @@ WORKDIR /app
 # Copy the built executable from the build stage
 COPY --from=build /app/app .
 
+# Copy the Firebase key file (created by the workflow)
+COPY sharedBitesFirebase.json .
+
 # Change ownership to the non-root user
 RUN chown -R appuser:appgroup /app
 

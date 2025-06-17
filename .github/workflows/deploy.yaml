@@ -44,62 +44,12 @@ jobs:
           fi
           echo "✅ Firebase key file created successfully"
 
-      - name: Create optimized Dockerfile for local build
+      - name: Build Docker image using main Dockerfile
         run: |
-          cat > Dockerfile.local << 'EOF'
-          FROM alpine:latest
+          echo "Building Docker image using main Dockerfile..."
 
-          # Install runtime dependencies
-          RUN apk add --no-cache \
-              ca-certificates \
-              tzdata \
-              wget \
-              && update-ca-certificates
-
-          # Create a non-root user for security
-          RUN addgroup -g 1001 -S appgroup && \
-              adduser -u 1001 -S appuser -G appgroup
-
-          # Set the working directory
-          WORKDIR /app
-
-          # Copy the pre-built executable and Firebase key
-          COPY app .
-          COPY sharedBitesFirebase.json .
-
-          # Debug: Check files after copying
-          RUN ls -la /app && \
-              file /app/app && \
-              echo "Executable size: $(stat -c%s /app/app) bytes"
-
-          # Make sure the executable has proper permissions
-          RUN chmod +x /app/app
-
-          # Change ownership to the non-root user
-          RUN chown -R appuser:appgroup /app
-
-          # Switch to non-root user
-          USER appuser
-
-          # Debug: Check files as non-root user
-          RUN ls -la /app && \
-              file /app/app
-
-          # Expose the port the application listens on
-          EXPOSE 8080
-
-          # Add health check
-          HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-              CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
-
-          # Command to run the application
-          CMD ["./app"]
-          EOF
-
-      - name: Build Docker image locally
-        run: |
-          echo "Building Docker image locally..."
-          docker build -f Dockerfile.local -t sharedbites-backend:latest .
+          # Build the image using the main Dockerfile
+          docker build --platform linux/arm64 -t sharedbites-backend:latest .
 
           # Debug: Check what's in the built image
           echo "Checking contents of built image..."
@@ -252,7 +202,7 @@ jobs:
       - name: Cleanup build artifacts
         run: |
           echo "Cleaning up build artifacts..."
-          rm -f app Dockerfile.local sharedBitesFirebase.json
+          rm -f app sharedBitesFirebase.json
 
       - name: Verify deployment
         run: |
