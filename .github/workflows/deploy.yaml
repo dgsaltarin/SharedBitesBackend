@@ -29,7 +29,6 @@ jobs:
           # Debug: Check if the executable was created and its properties
           echo "Checking built executable..."
           ls -la app
-          file app
           echo "Executable size: $(stat -c%s app) bytes"
 
       - name: Create Firebase key file from environment variable
@@ -54,7 +53,6 @@ jobs:
           # Debug: Check what's in the built image
           echo "Checking contents of built image..."
           docker run --rm sharedbites-backend:latest ls -la /app
-          docker run --rm sharedbites-backend:latest file /app/app
 
       - name: Setup PostgreSQL
         run: |
