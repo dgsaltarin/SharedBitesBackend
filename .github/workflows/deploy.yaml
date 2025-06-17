@@ -114,19 +114,54 @@ jobs:
 
           echo "✅ PostgreSQL container started"
 
-          # Wait for PostgreSQL to be ready
+          # Wait for PostgreSQL to be ready with better debugging
           echo "Waiting for PostgreSQL to be ready..."
-          for i in {1..30}; do
-            if docker exec sharedbites-postgres pg_isready -U sharedbites_user -d sharedbites > /dev/null 2>&1; then
-              echo "✅ PostgreSQL is ready"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "❌ PostgreSQL failed to start within 30 seconds"
+          for i in {1..60}; do
+            echo "Attempt $i/60: Checking PostgreSQL readiness..."
+            
+            # Check if container is running
+            if ! docker ps -q -f name=sharedbites-postgres | grep -q .; then
+              echo "❌ PostgreSQL container is not running"
+              docker logs sharedbites-postgres
               exit 1
             fi
+            
+            # Try multiple methods to check readiness
+            if docker exec sharedbites-postgres pg_isready -U sharedbites_user -d sharedbites > /dev/null 2>&1; then
+              echo "✅ PostgreSQL is ready (pg_isready)"
+              break
+            fi
+            
+            # Alternative: try to connect with psql
+            if docker exec sharedbites-postgres psql -U sharedbites_user -d sharedbites -c "SELECT 1;" > /dev/null 2>&1; then
+              echo "✅ PostgreSQL is ready (psql connection)"
+              break
+            fi
+            
+            # Alternative: check if port is listening
+            if docker exec sharedbites-postgres netstat -tlnp | grep -q ":5432 "; then
+              echo "✅ PostgreSQL port is listening"
+              # Give it a moment more to fully initialize
+              sleep 2
+              if docker exec sharedbites-postgres psql -U sharedbites_user -d sharedbites -c "SELECT 1;" > /dev/null 2>&1; then
+                echo "✅ PostgreSQL is ready (port + psql)"
+                break
+              fi
+            fi
+            
+            if [ $i -eq 60 ]; then
+              echo "❌ PostgreSQL failed to start within 60 seconds"
+              echo "PostgreSQL container logs:"
+              docker logs sharedbites-postgres
+              echo "PostgreSQL container status:"
+              docker ps -f name=sharedbites-postgres
+              exit 1
+            fi
+            
             sleep 1
           done
+
+          echo "✅ PostgreSQL is fully ready and accepting connections"
 
       - name: Deploy application container
         run: |
