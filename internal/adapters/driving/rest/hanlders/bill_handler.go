@@ -3,8 +3,10 @@ package hanlders
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/texttrack"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/application"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
 	"github.com/gin-gonic/gin"
@@ -22,116 +24,6 @@ func NewBillHandler(billService *application.BillService) *BillHandler {
 		panic("BillService cannot be nil in NewBillHandler")
 	}
 	return &BillHandler{billService: billService}
-}
-
-// UploadBill godoc
-// @Summary Upload a bill image for processing
-// @Description Upload a bill image file (JPEG, PNG, PDF) to be stored in S3 and prepared for OCR analysis. Requires authentication.
-// @Tags Bills
-// @Accept mpfd
-// @Produce json
-// @Param image formData file true "Image file of the bill to upload (JPEG, PNG, PDF supported)"
-// @Success 200 {object} gin.H{"bill_id": string, "message": string} "Successfully uploaded bill with generated UUID"
-// @Failure 400 {object} gin.H{"error": string} "Bad Request - missing file, invalid file format, or malformed request"
-// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - file storage or database error"
-// @Router /bills/upload [post]
-func (h *BillHandler) UploadBill(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	userIDStr, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	userID, ok := userIDStr.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
-		return
-	}
-
-	file, header, err := c.Request.FormFile("image")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read image from request: " + err.Error()})
-		return
-	}
-	defer file.Close()
-
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream" // Default content type
-	}
-
-	// Create upload request
-	uploadReq := domain.UploadBillRequest{
-		UserID:      userID,
-		File:        file,
-		Filename:    header.Filename,
-		ContentType: contentType,
-	}
-
-	// Upload the bill
-	bill, err := h.billService.UploadBill(c, uploadReq)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload bill: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"bill_id": bill.ID.String(),
-		"message": "Bill uploaded successfully",
-	})
-}
-
-// AnalyzeBill godoc
-// @Summary Analyze a bill using AWS Textract OCR
-// @Description Process a previously uploaded bill with AWS Textract to extract vendor information, line items, and transaction details. Returns the complete analyzed bill data upon successful processing.
-// @Tags Bills
-// @Produce json
-// @Param bill_id path string true "UUID of the bill to analyze"
-// @Success 200 {object} domain.BillDTO "Successfully analyzed bill with extracted data"
-// @Failure 400 {object} gin.H{"error": string} "Bad Request - invalid bill ID format"
-// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
-// @Failure 404 {object} gin.H{"error": string} "Not Found - bill not found or not owned by user"
-// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - Textract processing or database error"
-// @Router /bills/{bill_id}/analyze [post]
-func (h *BillHandler) AnalyzeBill(c *gin.Context) {
-	billIDStr := c.Param("bill_id")
-	billID, err := uuid.Parse(billIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bill ID format"})
-		return
-	}
-
-	err = h.billService.AnalyzeBill(c, billID)
-	if err != nil {
-		if err == domain.ErrBillNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Bill not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to analyze bill: " + err.Error()})
-		return
-	}
-
-	userIDStr, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	userID, ok := userIDStr.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
-		return
-	}
-
-	billWithURL, err := h.billService.GetBill(c, billID, userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve bill: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, formatBillResponse(billWithURL))
 }
 
 // GetBill godoc
@@ -343,6 +235,197 @@ func (h *BillHandler) DeleteBill(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Bill deleted successfully"})
+}
+
+// UploadAndAnalyzeBillWithConfig godoc
+// @Summary Upload and analyze a bill image with custom language and analysis configuration
+// @Description Upload a bill image file and immediately process it with AWS Textract OCR using custom language settings, confidence thresholds, and currency codes. Ideal for multi-language documents and specific regional requirements.
+// @Tags Bills
+// @Accept mpfd
+// @Produce json
+// @Param image formData file true "Image file of the bill to upload and analyze (JPEG, PNG, PDF supported)"
+// @Param languages formData string false "Comma-separated list of language codes (e.g., 'es,en' for Spanish and English)"
+// @Param min_confidence formData number false "Minimum confidence threshold (0.0 to 1.0, default: 0.7)"
+// @Param currency_codes formData string false "Comma-separated list of currency codes (e.g., 'EUR,USD,MXN')"
+// @Success 200 {object} domain.BillDTO "Successfully uploaded and analyzed bill with extracted data"
+// @Failure 400 {object} gin.H{"error": string} "Bad Request - missing file, invalid file format, or malformed request"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Failure 500 {object} gin.H{"error": string} "Internal Server Error - file storage, Textract processing, or database error"
+// @Router /bills/upload-analyze-config [post]
+func (h *BillHandler) UploadAndAnalyzeBillWithConfig(c *gin.Context) {
+	// Get user ID from context (set by auth middleware)
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, ok := userIDStr.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read image from request: " + err.Error()})
+		return
+	}
+	defer file.Close()
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream" // Default content type
+	}
+
+	// Parse configuration parameters
+	config := texttrack.DefaultConfig() // Start with default config
+
+	// Parse languages
+	if languagesStr := c.PostForm("languages"); languagesStr != "" {
+		languages := strings.Split(languagesStr, ",")
+		for i, lang := range languages {
+			languages[i] = strings.TrimSpace(lang)
+		}
+		config.Languages = languages
+	}
+
+	// Parse min_confidence
+	if minConfidenceStr := c.PostForm("min_confidence"); minConfidenceStr != "" {
+		if minConfidence, err := strconv.ParseFloat(minConfidenceStr, 64); err == nil {
+			if minConfidence >= 0.0 && minConfidence <= 1.0 {
+				config.MinConfidence = minConfidence
+			}
+		}
+	}
+
+	// Parse currency_codes
+	if currencyCodesStr := c.PostForm("currency_codes"); currencyCodesStr != "" {
+		currencyCodes := strings.Split(currencyCodesStr, ",")
+		for i, code := range currencyCodes {
+			currencyCodes[i] = strings.TrimSpace(code)
+		}
+		config.CurrencyCodes = currencyCodes
+	}
+
+	// Create upload request
+	uploadReq := domain.UploadBillRequest{
+		UserID:      userID,
+		File:        file,
+		Filename:    header.Filename,
+		ContentType: contentType,
+	}
+
+	// Upload and analyze the bill with custom configuration
+	billWithURL, err := h.billService.UploadAndAnalyzeBillWithConfig(c, uploadReq, config)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload and analyze bill: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, formatBillResponse(billWithURL))
+}
+
+// GetAnalysisConfigs godoc
+// @Summary Get available analysis configurations for different languages and regions
+// @Description Retrieve information about pre-configured analysis settings for different languages, regions, and use cases. This helps users choose the appropriate configuration for their documents.
+// @Tags Bills
+// @Produce json
+// @Success 200 {object} gin.H{"configs": []gin.H} "Available analysis configurations with descriptions"
+// @Failure 401 {object} gin.H{"error": string} "Unauthorized - invalid or missing authentication token"
+// @Router /bills/analysis-configs [get]
+func (h *BillHandler) GetAnalysisConfigs(c *gin.Context) {
+	configs := []gin.H{
+		{
+			"name":        "default",
+			"description": "Default configuration optimized for Spanish and English bills",
+			"languages":   []string{"es", "en"},
+			"confidence":  0.7,
+			"currencies":  []string{"EUR", "USD", "MXN", "ARS", "CLP", "COP", "PEN", "UYU"},
+		},
+		{
+			"name":        "spanish",
+			"description": "Optimized for Spanish bills with Spanish-specific keywords and formatting",
+			"languages":   []string{"es"},
+			"confidence":  0.6,
+			"currencies":  []string{"EUR", "MXN", "ARS", "CLP", "COP", "PEN", "UYU", "USD"},
+		},
+		{
+			"name":        "english",
+			"description": "Optimized for English bills with English-specific keywords and formatting",
+			"languages":   []string{"en"},
+			"confidence":  0.7,
+			"currencies":  []string{"USD", "EUR", "GBP", "CAD", "AUD", "JPY"},
+		},
+		{
+			"name":        "french",
+			"description": "Optimized for French bills with French-specific keywords and formatting",
+			"languages":   []string{"fr"},
+			"confidence":  0.6,
+			"currencies":  []string{"EUR", "USD", "CAD", "CHF", "GBP"},
+		},
+		{
+			"name":        "german",
+			"description": "Optimized for German bills with German-specific keywords and formatting",
+			"languages":   []string{"de"},
+			"confidence":  0.6,
+			"currencies":  []string{"EUR", "USD", "CHF", "GBP"},
+		},
+		{
+			"name":        "portuguese",
+			"description": "Optimized for Portuguese bills with Portuguese-specific keywords and formatting",
+			"languages":   []string{"pt"},
+			"confidence":  0.6,
+			"currencies":  []string{"EUR", "USD", "BRL", "MZN", "AOA"},
+		},
+		{
+			"name":        "italian",
+			"description": "Optimized for Italian bills with Italian-specific keywords and formatting",
+			"languages":   []string{"it"},
+			"confidence":  0.6,
+			"currencies":  []string{"EUR", "USD", "CHF", "GBP"},
+		},
+		{
+			"name":        "latin_american",
+			"description": "Optimized for Latin American Spanish bills with regional currency support",
+			"languages":   []string{"es"},
+			"confidence":  0.5,
+			"currencies":  []string{"MXN", "ARS", "CLP", "COP", "PEN", "UYU", "BRL", "USD", "EUR"},
+		},
+		{
+			"name":        "european",
+			"description": "Multi-language configuration for European bills (English, Spanish, French, German, Italian, Portuguese)",
+			"languages":   []string{"en", "es", "fr", "de", "it", "pt"},
+			"confidence":  0.6,
+			"currencies":  []string{"EUR", "USD", "GBP", "CHF", "SEK", "NOK", "DKK"},
+		},
+		{
+			"name":        "high_accuracy",
+			"description": "High accuracy configuration with strict confidence requirements (85%)",
+			"languages":   []string{"es", "en"},
+			"confidence":  0.85,
+			"currencies":  []string{"EUR", "USD", "MXN", "ARS", "CLP", "COP", "PEN", "UYU"},
+		},
+		{
+			"name":        "low_confidence",
+			"description": "Low confidence configuration for poor quality images or unclear text (40%)",
+			"languages":   []string{"es", "en"},
+			"confidence":  0.4,
+			"currencies":  []string{"EUR", "USD", "MXN", "ARS", "CLP", "COP", "PEN", "UYU"},
+		},
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"configs": configs,
+		"usage": gin.H{
+			"endpoint": "/bills/upload-analyze-config",
+			"parameters": gin.H{
+				"languages":      "Comma-separated list of language codes (e.g., 'es,en')",
+				"min_confidence": "Minimum confidence threshold (0.0 to 1.0)",
+				"currency_codes": "Comma-separated list of currency codes (e.g., 'EUR,USD,MXN')",
+			},
+		},
+	})
 }
 
 // Helper functions

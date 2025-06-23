@@ -37,8 +37,8 @@ func SetupAppRoutes(
 	if billHandler != nil {
 		billProtected := protectedRoutes.Group("/bills")
 		{
-			billProtected.POST("/upload", billHandler.UploadBill)
-			billProtected.POST("/:bill_id/analyze", billHandler.AnalyzeBill)
+			billProtected.POST("/upload-analyze-config", billHandler.UploadAndAnalyzeBillWithConfig)
+			billProtected.GET("/analysis-configs", billHandler.GetAnalysisConfigs)
 			billProtected.GET("", billHandler.ListBills)
 			billProtected.GET("/:bill_id", billHandler.GetBill)
 			billProtected.GET("/:bill_id/status", billHandler.GetBillStatus)

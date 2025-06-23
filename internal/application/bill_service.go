@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/dgsaltarin/SharedBitesBackend/internal/adapters/driven/texttrack"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/domain"
 	"github.com/dgsaltarin/SharedBitesBackend/internal/ports"
 	"github.com/dgsaltarin/SharedBitesBackend/platform/aws"
@@ -34,8 +35,9 @@ func NewBillService(
 	}
 }
 
-// UploadBill handles uploading a bill file to storage and saving its metadata
-func (s *BillService) UploadBill(ctx context.Context, req domain.UploadBillRequest) (*domain.Bill, error) {
+// UploadAndAnalyzeBillWithConfig handles uploading a bill file and immediately analyzing it with custom configuration
+// This allows for language-specific optimization and custom confidence thresholds
+func (s *BillService) UploadAndAnalyzeBillWithConfig(ctx context.Context, req domain.UploadBillRequest, config texttrack.TextDetectionConfig) (*domain.BillWithURL, error) {
 	if req.UserID == uuid.Nil {
 		return nil, domain.ErrUserIDEmpty
 	}
@@ -67,42 +69,35 @@ func (s *BillService) UploadBill(ctx context.Context, req domain.UploadBillReque
 		return nil, fmt.Errorf("error saving bill to database: %w", err)
 	}
 
-	return bill, nil
-}
-
-func (s *BillService) AnalyzeBill(ctx context.Context, billID uuid.UUID) error {
-	if billID == uuid.Nil {
-		return domain.ErrInvalidInput
-	}
-
-	// Retrieve the bill from the database
-	var bill domain.Bill
-	if err := s.db.First(&bill, "id = ?", billID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return domain.ErrBillNotFound
-		}
-		return fmt.Errorf("error retrieving bill: %w", err)
-	}
-
 	// Update bill status to processing
-	if err := s.db.Model(&bill).Update("status", domain.BillStatusProcessing).Error; err != nil {
-		return fmt.Errorf("error updating bill status to processing: %w", err)
+	if err := s.db.Model(bill).Update("status", domain.BillStatusProcessing).Error; err != nil {
+		// Clean up on error
+		s.fileStore.DeleteFile(ctx, storedPath)
+		s.db.Delete(bill)
+		return nil, fmt.Errorf("error updating bill status to processing: %w", err)
 	}
 
-	// Analyze the document with Textract
-	result, err := s.textProcessor.AnalyzeDocument(ctx, bill.FileStoragePath)
+	// Cast textProcessor to the specific adapter type to access enhanced method
+	textAdapter, ok := s.textProcessor.(*texttrack.AWSTextractAdapter)
+	if !ok {
+		// Fallback to standard analysis if the adapter type is not available
+		return nil, fmt.Errorf("enhanced text processing not available")
+	}
+
+	// Analyze the document with enhanced configuration
+	result, err := textAdapter.AnalyzeDocumentWithConfig(ctx, bill.FileStoragePath, config)
 	if err != nil {
 		// Update bill status to failed
-		s.db.Model(&bill).Updates(map[string]interface{}{
+		s.db.Model(bill).Updates(map[string]interface{}{
 			"status": domain.BillStatusFailed,
 		})
-		return fmt.Errorf("error analyzing bill with Textract: %w", err)
+		return nil, fmt.Errorf("error analyzing bill with enhanced Textract: %w", err)
 	}
 
 	// Start a transaction to update the bill and create line items
 	tx := s.db.Begin()
 	if tx.Error != nil {
-		return fmt.Errorf("error starting transaction: %w", tx.Error)
+		return nil, fmt.Errorf("error starting transaction: %w", tx.Error)
 	}
 
 	// Update bill with extracted information
@@ -114,21 +109,15 @@ func (s *BillService) AnalyzeBill(ctx context.Context, billID uuid.UUID) error {
 		"status":            domain.BillStatusAnalyzed,
 	}
 
-	if err := tx.Model(&bill).Updates(billUpdates).Error; err != nil {
+	if err := tx.Model(bill).Updates(billUpdates).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("error updating bill with extracted data: %w", err)
-	}
-
-	// Clear existing line items (if any) and add new ones
-	if err := tx.Where("bill_id = ?", billID).Delete(&domain.LineItem{}).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("error clearing existing line items: %w", err)
+		return nil, fmt.Errorf("error updating bill with extracted data: %w", err)
 	}
 
 	// Create line items from extracted data
 	for _, item := range result.LineItems {
 		lineItem, err := domain.NewLineItem(
-			billID,
+			bill.ID,
 			item.Description,
 			item.Quantity,
 			item.UnitPrice,
@@ -136,21 +125,38 @@ func (s *BillService) AnalyzeBill(ctx context.Context, billID uuid.UUID) error {
 		)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("error creating line item: %w", err)
+			return nil, fmt.Errorf("error creating line item: %w", err)
 		}
 
 		if err := tx.Create(lineItem).Error; err != nil {
 			tx.Rollback()
-			return fmt.Errorf("error saving line item: %w", err)
+			return nil, fmt.Errorf("error saving line item: %w", err)
 		}
 	}
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("error committing transaction: %w", err)
+		return nil, fmt.Errorf("error committing transaction: %w", err)
 	}
 
-	return nil
+	// Reload the bill with line items
+	var updatedBill domain.Bill
+	if err := s.db.Preload("LineItems").First(&updatedBill, "id = ?", bill.ID).Error; err != nil {
+		return nil, fmt.Errorf("error reloading bill with line items: %w", err)
+	}
+
+	// Generate a pre-signed URL for the bill file
+	fileURL, err := s.fileStore.GetFileURL(ctx, updatedBill.FileStoragePath)
+	if err != nil {
+		// Log the error but continue as this is not critical
+		fmt.Printf("Warning: Failed to generate pre-signed URL for bill %s: %v\n", updatedBill.ID, err)
+		fileURL = "" // Empty URL if we couldn't generate one
+	}
+
+	return &domain.BillWithURL{
+		Bill:    &updatedBill,
+		FileURL: fileURL,
+	}, nil
 }
 
 // GetBill retrieves a bill and its line items by ID
