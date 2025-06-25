@@ -13,6 +13,7 @@ func SetupAppRoutes(
 	protectedRoutes *gin.RouterGroup,
 	userHandler *hanlders.UserHandler,
 	billHandler *hanlders.BillHandler,
+	groupHandler *hanlders.GroupHandler,
 ) {
 	// --- User Routes --- //
 	if userHandler != nil {
@@ -46,5 +47,19 @@ func SetupAppRoutes(
 		}
 	} else {
 		log.Println("WARN: BillHandler is nil, Bill routes not configured in SetupAppRoutes.")
+	}
+
+	// --- Group Routes --- //
+	if groupHandler != nil {
+		groupProtected := protectedRoutes.Group("/groups")
+		{
+			groupProtected.POST("", groupHandler.CreateGroup)
+			groupProtected.GET("", groupHandler.ListGroups)
+			groupProtected.GET("/:group_id", groupHandler.GetGroup)
+			groupProtected.PUT("/:group_id", groupHandler.UpdateGroup)
+			groupProtected.DELETE("/:group_id", groupHandler.DeleteGroup)
+		}
+	} else {
+		log.Println("WARN: GroupHandler is nil, Group routes not configured in SetupAppRoutes.")
 	}
 }

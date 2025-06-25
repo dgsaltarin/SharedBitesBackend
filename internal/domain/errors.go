@@ -12,6 +12,9 @@ var (
 // Group Specific Errors
 var (
 	ErrGroupNotFound              = errors.New("group not found")
+	ErrGroupNameEmpty             = errors.New("group name cannot be empty")
+	ErrGroupMembersEmpty          = errors.New("group must have at least one member")
+	ErrGroupMemberNameEmpty       = errors.New("group member name cannot be empty")
 	ErrUserNotFound               = errors.New("user not found")
 	ErrAlreadyMember              = errors.New("user is already a member of the group")
 	ErrNotMember                  = errors.New("user is not a member of the group")

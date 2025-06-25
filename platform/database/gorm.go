@@ -69,7 +69,8 @@ func ConnectGORM(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		&domain.User{},
 		&domain.Bill{},
 		&domain.LineItem{},
-		//&domain.Group{},   // Add other domain models you need tables for
+		&domain.Group{},
+		&domain.GroupMember{},
 		//&domain.Expense{}, // Add other domain models you need tables for
 	)
 	if err != nil {

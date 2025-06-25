@@ -21,3 +21,13 @@ type BillRepository interface {
 	UpdateBill(ctx context.Context, bill *domain.Bill) error
 	SaveBillWithLineItems(ctx context.Context, bill *domain.Bill, lineItems []*domain.LineItem) error
 }
+
+// GroupRepository defines the interface for group data access operations
+type GroupRepository interface {
+	Create(ctx context.Context, group *domain.Group) error
+	GetByID(ctx context.Context, groupID uuid.UUID) (*domain.Group, error)
+	GetByIDAndOwner(ctx context.Context, groupID, ownerID uuid.UUID) (*domain.Group, error)
+	ListByOwner(ctx context.Context, ownerID uuid.UUID, options domain.ListGroupsOptions) ([]domain.Group, int64, error)
+	Update(ctx context.Context, group *domain.Group) error
+	Delete(ctx context.Context, groupID uuid.UUID) error
+}

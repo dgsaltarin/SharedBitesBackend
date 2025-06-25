@@ -103,15 +103,18 @@ func main() {
 
 	// Initialize repositories
 	userRepo := sql.NewGORMUserRepository(db)
+	groupRepo := sql.NewGroupRepository(db)
 
 	// Initialize services
 	userService := application.NewUserService(userRepo, firebaseAuthProvider)
+	groupService := application.NewGroupService(groupRepo)
 
 	// Initialize handlers
 	userHandler := hanlders.NewUserHandler(*userService)
+	groupHandler := hanlders.NewGroupHandler(groupService)
 
 	// Setup router
-	router := setupRouter(userHandler, billHandler, authClient, userService)
+	router := setupRouter(userHandler, billHandler, authClient, userService, groupHandler)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Server.Port,
@@ -147,7 +150,7 @@ func initFirebase(ctx context.Context, serviceAccountKeyPath string) (*firebase.
 }
 
 func setupRouter(userHandler *hanlders.UserHandler, billHandler *hanlders.BillHandler,
-	authClient *auth.Client, userService *application.UserService) *gin.Engine {
+	authClient *auth.Client, userService *application.UserService, groupHandler *hanlders.GroupHandler) *gin.Engine {
 	router := gin.Default()
 
 	router.GET("/healthcheck", func(c *gin.Context) {
@@ -165,7 +168,7 @@ func setupRouter(userHandler *hanlders.UserHandler, billHandler *hanlders.BillHa
 	protectedApiV1.Use(appmiddleware.FirebaseAuthMiddleware(authClient))
 	protectedApiV1.Use(appmiddleware.UserLookupMiddleware(userService))
 
-	rest.SetupAppRoutes(publicApiV1, protectedApiV1, userHandler, billHandler)
+	rest.SetupAppRoutes(publicApiV1, protectedApiV1, userHandler, billHandler, groupHandler)
 
 	return router
 }
