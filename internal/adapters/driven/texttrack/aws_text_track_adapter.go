@@ -161,6 +161,8 @@ func (a *AWSTextractAdapter) AnalyzeDocumentWithConfig(ctx context.Context, stor
 		return nil, fmt.Errorf("failed to analyze document with Textract: %w", err)
 	}
 
+	fmt.Println(output)
+
 	return parseTextractOutputWithConfig(output, config)
 }
 
