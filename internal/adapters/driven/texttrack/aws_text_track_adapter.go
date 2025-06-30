@@ -31,7 +31,7 @@ func DefaultConfig() TextDetectionConfig {
 	return TextDetectionConfig{
 		Languages:     []string{"es", "en"}, // Spanish first, then English
 		MinConfidence: 0.7,                  // 70% confidence threshold
-		CurrencyCodes: []string{"EUR", "USD", "MXN", "ARS", "CLP", "COP", "PEN", "UYU"},
+		CurrencyCodes: []string{"COP", "USD"},
 	}
 }
 
@@ -376,7 +376,7 @@ func isQuantityField(fieldType *types.ExpenseType) bool {
 func isUnitPriceField(fieldType *types.ExpenseType) bool {
 	if fieldType != nil && fieldType.Text != nil {
 		text := strings.ToUpper(*fieldType.Text)
-		return text == "PRICE" || text == "UNIT_PRICE" || text == "PRECIO_UNITARIO"
+		return text == "PRICE" || text == "UNIT_PRICE" || text == "PRECIO_UNITARIO" || text == "TOTAL"
 	}
 	return false
 }
@@ -384,7 +384,7 @@ func isUnitPriceField(fieldType *types.ExpenseType) bool {
 func isTotalPriceField(fieldType *types.ExpenseType) bool {
 	if fieldType != nil && fieldType.Text != nil {
 		text := strings.ToUpper(*fieldType.Text)
-		return text == "TOTAL_PRICE" || text == "LINE_ITEM_TOTAL" || text == "PRECIO_TOTAL"
+		return text == "TOTAL_PRICE" || text == "LINE_ITEM_TOTAL" || text == "PRECIO_TOTAL" || text == "VALOR_TOTAL"
 	}
 	return false
 }
