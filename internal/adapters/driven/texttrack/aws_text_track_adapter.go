@@ -378,7 +378,7 @@ func isQuantityField(fieldType *types.ExpenseType) bool {
 func isUnitPriceField(fieldType *types.ExpenseType) bool {
 	if fieldType != nil && fieldType.Text != nil {
 		text := strings.ToUpper(*fieldType.Text)
-		return text == "PRICE" || text == "UNIT_PRICE" || text == "PRECIO_UNITARIO" || text == "TOTAL"
+		return text == "PRICE" || text == "PRECIO_UNITARIO" || text == "TOTAL"
 	}
 	return false
 }
